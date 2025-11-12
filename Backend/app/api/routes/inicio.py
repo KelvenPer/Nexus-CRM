@@ -88,3 +88,9 @@ async def get_calendar_activities(context: TenantContext = Depends(get_tenant_co
         for activity in store.list_activities()
     ]
     return {"events": events}
+
+
+@router.get("/lembretes", summary="List reminders based on activities")
+async def get_reminders(context: TenantContext = Depends(get_tenant_context)):
+    store = data_store.get_store(context.tenant_id)
+    return {"items": store.list_reminders()}

@@ -10,6 +10,8 @@ from app.models import (
     LeadResponse,
     OpportunityCreate,
     OpportunityResponse,
+    ProductCreate,
+    ProductResponse,
 )
 from app.services import data_store
 
@@ -187,3 +189,24 @@ async def list_contacts(context: TenantContext = Depends(get_tenant_context)):
 async def create_contact(payload: ContactCreate, context: TenantContext = Depends(get_tenant_context)):
     store = data_store.get_store(context.tenant_id)
     return store.create_contact(payload)
+
+
+@router.get(
+    "/produtos",
+    summary="List products",
+    response_model=list[ProductResponse],
+)
+async def list_products(context: TenantContext = Depends(get_tenant_context)):
+    store = data_store.get_store(context.tenant_id)
+    return store.list_products()
+
+
+@router.post(
+    "/produtos",
+    summary="Create a new product",
+    response_model=ProductResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_product(payload: ProductCreate, context: TenantContext = Depends(get_tenant_context)):
+    store = data_store.get_store(context.tenant_id)
+    return store.create_product(payload)

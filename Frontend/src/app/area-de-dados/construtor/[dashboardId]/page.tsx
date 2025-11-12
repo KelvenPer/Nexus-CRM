@@ -18,85 +18,120 @@ type DashboardApiResponse = {
   layout?: Layout[];
 };
 
-const normalizeWidget = (widget: any, fallbackIndex: number): WidgetDefinition => {
-  const chartType = (widget?.chartType ?? widget?.tipo ?? "bar") as WidgetType;
+type UnknownRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+  typeof value === "object" && value !== null;
+
+const toStringOrFallback = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  return fallback;
+};
+
+const toStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+const toRecordArray = (value: unknown): UnknownRecord[] =>
+  Array.isArray(value) ? value.filter(isRecord) : [];
+
+const normalizeWidget = (widgetInput: unknown, fallbackIndex: number): WidgetDefinition => {
+  const widget = isRecord(widgetInput) ? widgetInput : {};
+
+  const chartTypeRaw = (widget.chartType ?? widget.tipo ?? "bar") as string;
+  const allowedTypes: WidgetType[] = ["bar", "line", "pie", "kpi"];
+  const chartType = allowedTypes.includes(chartTypeRaw as WidgetType)
+    ? (chartTypeRaw as WidgetType)
+    : "bar";
+
+  const objectIdCandidate =
+    widget.objectId ??
+    widget.metaObjectId ??
+    (isRecord(widget.object) ? widget.object.metaId ?? widget.object.id : undefined) ??
+    widget.idObjeto ??
+    fallbackIndex;
+
   return {
-    id: String(widget?.id ?? widget?.widgetId ?? `widget-${fallbackIndex}`),
-    title: widget?.title ?? widget?.nome ?? "Widget sem titulo",
+    id: toStringOrFallback(widget.id ?? widget.widgetId ?? `widget-${fallbackIndex}`),
+    title: toStringOrFallback(widget.title ?? widget.nome, "Widget sem titulo"),
     chartType,
-    objectId: String(
-      widget?.objectId ??
-        widget?.metaObjectId ??
-        widget?.object?.metaId ??
-        widget?.object?.id ??
-        widget?.idObjeto ??
-        fallbackIndex
+    objectId: toStringOrFallback(objectIdCandidate, String(fallbackIndex)),
+    objectLabel: toStringOrFallback(
+      widget.objectLabel ??
+        widget.objectName ??
+        (isRecord(widget.object) ? widget.object.nomeAmigavel : undefined),
+      "Objeto"
     ),
-    objectLabel:
-      widget?.objectLabel ?? widget?.objectName ?? widget?.object?.nomeAmigavel ?? "Objeto",
-    groupBy: widget?.groupBy ?? widget?.eixoX ?? "",
-    aggregate: widget?.aggregate ?? widget?.agregacao ?? "SUM",
-    aggregateField: widget?.aggregateField ?? widget?.eixoY ?? "",
-    data: Array.isArray(widget?.data) ? widget.data : Array.isArray(widget?.rows) ? widget.rows : [],
-    publishTargets: Array.isArray(widget?.publishTargets) ? widget.publishTargets : [],
+    groupBy: toStringOrFallback(widget.groupBy ?? widget.eixoX),
+    aggregate: toStringOrFallback(widget.aggregate ?? widget.agregacao, "SUM"),
+    aggregateField: toStringOrFallback(widget.aggregateField ?? widget.eixoY),
+    data: toRecordArray(Array.isArray(widget.data) ? widget.data : widget.rows),
+    publishTargets: toStringArray(widget.publishTargets),
   };
 };
 
-const normalizeLayout = (layout: any, widgets: WidgetDefinition[]): Layout[] => {
-  if (Array.isArray(layout) && layout.length) {
-    return layout
-      .map((item, index) => ({
-        i: String(item?.i ?? widgets[index]?.id ?? `widget-${index}`),
-        x: typeof item?.x === "number" ? item.x : ((index * 4) % 12),
-        y: typeof item?.y === "number" ? item.y : Math.floor(index / 3) * 3,
-        w: typeof item?.w === "number" ? item.w : 4,
-        h: typeof item?.h === "number" ? item.h : 4,
-      }))
+const normalizeLayout = (layoutInput: unknown, widgets: WidgetDefinition[]): Layout[] => {
+  if (Array.isArray(layoutInput) && layoutInput.length) {
+    return layoutInput
+      .map((item, index) => {
+        const record = isRecord(item) ? item : {};
+        return {
+          i: toStringOrFallback(record.i ?? widgets[index]?.id ?? `widget-${index}`),
+          x: typeof record.x === "number" ? record.x : ((index * 4) % 12),
+          y: typeof record.y === "number" ? record.y : Math.floor(index / 3) * 3,
+          w: typeof record.w === "number" ? record.w : 4,
+          h: typeof record.h === "number" ? record.h : 4,
+        };
+      })
       .filter((item) => widgets.some((widget) => widget.id === item.i));
   }
 
   return widgets.map((widget, index) => ({
     i: widget.id,
-    x: ((index * 4) % 12),
+    x: (index * 4) % 12,
     y: Math.floor(index / 3) * 3,
     w: widget.chartType === "kpi" ? 4 : 6,
     h: widget.chartType === "kpi" ? 3 : 4,
   }));
 };
 
-const normalizeMetaObjects = (payload: any): MetaObject[] => {
-  const list: any[] = Array.isArray(payload)
+const normalizeMetaObjects = (payload: unknown): MetaObject[] => {
+  const list = Array.isArray(payload)
     ? payload
-    : Array.isArray(payload?.metaObjects)
-    ? payload.metaObjects
-    : Array.isArray(payload?.objetos)
-    ? payload.objetos
+    : Array.isArray((payload as UnknownRecord | undefined)?.metaObjects)
+    ? (payload as UnknownRecord).metaObjects
+    : Array.isArray((payload as UnknownRecord | undefined)?.objetos)
+    ? (payload as UnknownRecord).objetos
     : [];
 
   return list
     .map((item) => {
-      const fields =
-        Array.isArray(item?.fields) && item.fields.every((field: any) => typeof field === "string")
-          ? (item.fields as string[])
-          : Array.isArray(item?.columns)
-          ? item.columns
-              .map((column: any) => column?.name ?? column?.nome ?? column?.label)
-              .filter((value: unknown): value is string => typeof value === "string")
-          : [];
+      if (!isRecord(item)) {
+        return null;
+      }
 
-      const metaId = String(item?.metaId ?? item?.id ?? item?.objectId ?? "");
+      const fields =
+        toStringArray(item.fields) ||
+        (Array.isArray(item.columns)
+          ? item.columns
+              .map((column) => (isRecord(column) ? column.name ?? column.nome ?? column.label : null))
+              .filter((value): value is string => typeof value === "string")
+          : []);
+
+      const metaId = toStringOrFallback(item.metaId ?? item.id ?? item.objectId);
       if (!metaId) {
         return null;
       }
 
-      const rawTipo = (item?.tipo ?? item?.kind ?? "custom").toString().toUpperCase();
+      const rawTipo = toStringOrFallback(item.tipo ?? item.kind, "custom").toUpperCase();
       return {
         metaId,
-        idObjeto: item?.idObjeto ?? item?.slug ?? item?.apiName ?? metaId,
-        nomeAmigavel: item?.nomeAmigavel ?? item?.name ?? "Objeto sem nome",
+        idObjeto: toStringOrFallback(item.idObjeto ?? item.slug ?? item.apiName ?? metaId, metaId),
+        nomeAmigavel: toStringOrFallback(item.nomeAmigavel ?? item.name, "Objeto sem nome"),
         tipo: rawTipo === "BASE" ? "BASE" : "CUSTOMIZADO",
         fields,
-      } as MetaObject;
+      };
     })
     .filter((item): item is MetaObject => Boolean(item));
 };
@@ -125,7 +160,7 @@ export default function DashboardBuilderPage({ params }: { params: { dashboardId
       setIsMetaLoading(true);
       setMetaError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/dados/meta-objetos`);
+        const response = await fetch(`${API_BASE_URL}/api/v1/dados/meta-objetos/disponiveis`);
         if (!response.ok) {
           throw new Error(`Erro ao carregar objetos (${response.status})`);
         }

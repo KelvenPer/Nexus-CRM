@@ -53,3 +53,43 @@ Este é o nosso novo fluxo de desenvolvimento para garantir a liderança de merc
 3.  **BI Acionável:** Foco em Ações de Write-Back e Gatilhos de Automação.
 
 Essa arquitetura não apenas nos dá flexibilidade, mas nos torna a plataforma central de inteligência do cliente, conectando o CRM ao ERP e automatizando as ações.
+
+## 4. Estrutura física das tabelas (Passo 2.2)
+
+Para viabilizar o ciclo Estúdio SQL → Metadados → Relatórios, cada tenant recebe três tabelas estratégicas (ver `docs/sql/base_tables.sql`):
+
+- **tb_contato** – Pessoas com quem interagimos. Possui `tenant_id`, `owner_id`, `status_lead` e FK opcional para `tb_conta`.
+- **tb_oportunidade** – Negócios em andamento. Inclui `valor_estimado`, `estagio_funil`, `probabilidade`, dados de previsão e relacionamentos com campanha/contato.
+- **tb_atividade** – Interações e rastreabilidade. Classifica o tipo (`LIGACAO`, `EMAIL`, `REUNIAO`, `TAREFA`), controla status e conecta a contatos/oportunidades.
+
+Cada tabela carrega `tenant_id`, `criado_em`, `atualizado_em` e `owner_id` para permitir RLS, auditoria e automações.
+
+### Catálogo global: `tenant_admin.tb_meta_objeto`
+
+No schema central mantemos o catálogo de objetos consumidos pelos módulos No-Code. Campos principais:
+
+- `nome_tecnico` (único) + `sql_query`: definem o SELECT seguro que o Estúdio SQL salvou.
+- `tenant_criador_id` e `tipo_objeto` (`BASE` ou `CUSTOMIZADO_SQL`) preservam o ownership.
+- `status` controla publicação (`ATIVO`, `RASCUNHO`, `ARQUIVADO`).
+
+Com isso:
+1. O Estúdio SQL valida a consulta (Passo 2.1) e salva uma linha na `tb_meta_objeto`.
+2. Relatórios/BI listam objetos ativos consultando o catálogo.
+3. A execução final busca a `sql_query`, injeta filtros por `tenant_id` e executa em cima das tabelas base.
+
+O próximo passo é modelar `tb_meta_permissoes` para atrelar cada objeto a perfis de usuário.
+
+### Governança: `tenant_admin.tb_meta_permissoes`
+
+Tabela N:M que liga objetos a perfis/tenants:
+
+- `meta_objeto_id` → FK para o catálogo.
+- `tenant_id` → escopo da regra (mesmo que o objeto seja global).
+- `perfil_usuario` + `permissao` (`READ`/`WRITE`) → define o nível de acesso.
+
+Fluxo:
+1. Admin cria o objeto no Estúdio SQL (`tb_meta_objeto`).
+2. Na tela de Metadados ele marca perfis; cada marcação gera ou remove linhas em `tb_meta_permissoes`.
+3. Quando o frontend pede `/api/v1/dados/meta-objetos/disponiveis`, o backend filtra por tenant/perfil usando essa tabela e retorna apenas o que o usuário pode consumir.
+
+Isso garante que perfis como *VENDEDOR* não enxerguem objetos de *DIRETORIA*, mesmo estando no mesmo banco.

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import Editor from "@monaco-editor/react";
 
 interface SqlEditorProps {
@@ -18,30 +18,30 @@ const SqlEditor: React.FC<SqlEditorProps> = ({
   onValidationChange,
   executionTime,
 }) => {
-  const [validationStatus, setValidationStatus] =
-    useState<"valid" | "error" | "none">("none");
-  const [validationMessage, setValidationMessage] = useState("");
-
-  useEffect(() => {
-    if (sqlQuery.trim() === "") {
-      setValidationStatus("none");
-      setValidationMessage("");
-      onValidationChange(false);
-      return;
+  const validation = useMemo(() => {
+    const trimmed = sqlQuery.trim();
+    if (!trimmed) {
+      return { status: "none" as const, message: "", isValid: false };
     }
 
     if (FORBIDDEN_COMMANDS.test(sqlQuery)) {
-      setValidationStatus("error");
-      setValidationMessage(
-        "Comandos proibidos detectados (DROP, UPDATE, DELETE)!"
-      );
-      onValidationChange(false);
-    } else {
-      setValidationStatus("valid");
-      setValidationMessage("Consulta validada localmente.");
-      onValidationChange(true);
+      return {
+        status: "error" as const,
+        message: "Comandos proibidos detectados (DROP, UPDATE, DELETE)!",
+        isValid: false,
+      };
     }
-  }, [sqlQuery, onValidationChange]);
+
+    return {
+      status: "valid" as const,
+      message: "Consulta validada localmente.",
+      isValid: true,
+    };
+  }, [sqlQuery]);
+
+  useEffect(() => {
+    onValidationChange(validation.isValid);
+  }, [validation.isValid, onValidationChange]);
 
   const handleEditorChange = useCallback(
     (value?: string) => {
@@ -103,13 +103,13 @@ const SqlEditor: React.FC<SqlEditorProps> = ({
       </div>
 
       <footer className="px-4 py-2 border-t border-gray-800 text-xs">
-        {validationStatus === "valid" && (
-          <p className="text-green-400">{validationMessage}</p>
+        {validation.status === "valid" && (
+          <p className="text-green-400">{validation.message}</p>
         )}
-        {validationStatus === "error" && (
-          <p className="text-red-500">{validationMessage}</p>
+        {validation.status === "error" && (
+          <p className="text-red-500">{validation.message}</p>
         )}
-        {validationStatus === "none" && (
+        {validation.status === "none" && (
           <p className="text-gray-500">Digite sua consulta para validar.</p>
         )}
       </footer>

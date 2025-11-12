@@ -1,24 +1,24 @@
 import React from "react";
 
-export type Column = {
-  key: string;
+export type Column<T extends Record<string, unknown> = Record<string, unknown>> = {
+  key: keyof T & string;
   label: string;
-  render?: (row: Record<string, any>) => React.ReactNode;
+  render?: (row: T) => React.ReactNode;
 };
 
-type GenericDataTableProps = {
+type GenericDataTableProps<T extends Record<string, unknown>> = {
   title: string;
   description?: string;
-  columns: Column[];
-  data: Array<Record<string, any>>;
+  columns: Column<T>[];
+  data: T[];
 };
 
-export function GenericDataTable({
+export function GenericDataTable<T extends Record<string, unknown>>({
   title,
   description,
   columns,
   data,
-}: GenericDataTableProps) {
+}: GenericDataTableProps<T>) {
   return (
     <section className="panel">
       <div className="panel-header">
@@ -45,7 +45,7 @@ export function GenericDataTable({
               <tr key={index}>
                 {columns.map((column) => (
                   <td key={column.key}>
-                    {column.render ? column.render(row) : row[column.key]}
+                    {column.render ? column.render(row) : (row[column.key] as React.ReactNode)}
                   </td>
                 ))}
               </tr>

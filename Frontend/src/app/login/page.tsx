@@ -164,7 +164,14 @@ const LoginPage: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
           {tenantInfo?.tenantLogoUrl ? (
-            <img src={tenantInfo.tenantLogoUrl} alt="Logomarca do tenant" className="h-12 w-12 object-cover" />
+            <Image
+              src={tenantInfo.tenantLogoUrl}
+              alt="Logomarca do tenant"
+              width={48}
+              height={48}
+              className="h-12 w-12 object-cover"
+              unoptimized
+            />
           ) : (
             <Image src={nexusLogo} alt="Nexus" className="h-10 w-10 object-contain" />
           )}

@@ -9,6 +9,7 @@ from app.api.routes import (
     health,
     inicio,
     perfis,
+    solucoes,
     marketing,
     vendas,
 )
@@ -30,6 +31,7 @@ def get_application() -> FastAPI:
     app.include_router(marketing.router, prefix="/api/v1/marketing", tags=["Marketing"])
     app.include_router(automacao.router, prefix="/api/v1/automacao", tags=["Automation"])
     app.include_router(dados.router, prefix="/api/v1/dados", tags=["Data Area"])
+    app.include_router(solucoes.router, prefix="/api/v1/solucoes", tags=["Solutions"])
     app.include_router(perfis.router, prefix="/api/v1", tags=["Profiles"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 

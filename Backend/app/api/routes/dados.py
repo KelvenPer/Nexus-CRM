@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TenantContext, get_tenant_context
+from app.db.session import get_session
 from app.models import (
     DashboardListResponse,
     DashboardSaveRequest,
@@ -19,7 +21,8 @@ from app.models import (
     WidgetQueryRequest,
     WidgetQueryResponse,
 )
-from app.services.data_store import BASE_TABLES, DEFAULT_PROFILES, data_store
+from app.services import data_store, validar_e_executar_sql_seguro
+from app.services.data_store import BASE_TABLES, DEFAULT_PROFILES
 
 router = APIRouter()
 
@@ -31,24 +34,18 @@ router = APIRouter()
 )
 async def test_sql_query(
     query: SQLTestRequest,
+    session: AsyncSession = Depends(get_session),
     context: TenantContext = Depends(get_tenant_context),
 ) -> SQLTestResponse:
-    normalized = query.query.strip().lower()
-
-    if not normalized.startswith("select"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Apenas consultas SELECT sao permitidas neste endpoint.",
-        )
-
-    forbidden = ("drop", "delete", "update", "insert", "alter")
-    if any(keyword in normalized for keyword in forbidden):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Comandos destrutivos nao sao permitidos.",
-        )
-
-    return SQLTestResponse(isValid=True, rowsAffected=0)
+    validation = await validar_e_executar_sql_seguro(query.query, session=session)
+    return SQLTestResponse(
+        isValid=True,
+        rowsAffected=validation.rows_affected,
+        normalizedQuery=validation.normalized_query,
+        message=f"Consulta validada para o tenant {context.tenant_id}.",
+        time=f"{validation.execution_time_ms}ms",
+        results=validation.sample_rows,
+    )
 
 
 @router.get(
@@ -74,6 +71,20 @@ async def list_meta_objects(
 ) -> list[MetaObjectResponse]:
     store = data_store.get_store(context.tenant_id)
     return store.list_meta_objects()
+
+
+@router.get(
+    "/meta-objetos/disponiveis",
+    summary="List meta-objects available for the current user",
+    response_model=list[MetaObjectResponse],
+)
+async def list_available_meta_objects(
+    context: TenantContext = Depends(get_tenant_context),
+) -> list[MetaObjectResponse]:
+    store = data_store.get_store(context.tenant_id)
+    if context.has_role("data_admin"):
+        return store.list_meta_objects()
+    return store.list_meta_objects_for_roles(context.roles)
 
 
 @router.post(

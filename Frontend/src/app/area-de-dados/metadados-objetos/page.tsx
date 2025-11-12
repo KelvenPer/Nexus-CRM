@@ -21,6 +21,9 @@ const generateFallbackId = () =>
     ? crypto.randomUUID()
     : `meta-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const toProfileList = (value: unknown): UserProfile[] => {
   if (!value) return [];
 
@@ -30,9 +33,12 @@ const toProfileList = (value: unknown): UserProfile[] => {
         if (typeof item === "string") {
           return { id: item.trim(), name: item.trim() };
         }
+        if (!isRecord(item)) {
+          return null;
+        }
         const idCandidate =
-          item?.id ?? item?.profileId ?? item?.slug ?? item?.code ?? item?.name ?? item?.nome;
-        const nameCandidate = item?.name ?? item?.nome ?? item?.label ?? item?.descricao;
+          item.id ?? item.profileId ?? item.slug ?? item.code ?? item.name ?? item.nome;
+        const nameCandidate = item.name ?? item.nome ?? item.label ?? item.descricao;
         return idCandidate && nameCandidate
           ? { id: String(idCandidate), name: String(nameCandidate) }
           : null;
@@ -51,25 +57,31 @@ const toProfileList = (value: unknown): UserProfile[] => {
   return [];
 };
 
-const normalizeMetaObject = (item: any, index: number): MetaObjectRow => {
-  const tipo =
-    (item?.tipo ?? item?.kind ?? item?.origin ?? "").toString().toUpperCase() === "BASE"
-      ? "BASE"
-      : "CUSTOMIZADO";
+const toCapitalized = (value: string): string =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "";
 
-  const statusRaw = item?.status ?? item?.lifecycle ?? "Ativo";
-  const status =
-    typeof statusRaw === "string"
-      ? statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1).toLowerCase()
-      : "Ativo";
+const normalizeMetaObject = (item: unknown, index: number): MetaObjectRow => {
+  if (!isRecord(item)) {
+    return {
+      metaId: generateFallbackId() + index,
+      nomeAmigavel: "Objeto sem nome",
+      idObjeto: "",
+      tipo: "CUSTOMIZADO",
+      status: "Ativo",
+      profiles: [],
+    };
+  }
+
+  const tipoValue = (item.tipo ?? item.kind ?? item.origin ?? "").toString().toUpperCase();
+  const statusRaw = (item.status ?? item.lifecycle ?? "Ativo").toString();
 
   return {
-    metaId: String(item?.metaId ?? item?.id ?? item?.objectId ?? generateFallbackId() + index),
-    nomeAmigavel: item?.nomeAmigavel ?? item?.name ?? "Objeto sem nome",
-    idObjeto: item?.idObjeto ?? item?.slug ?? item?.apiName ?? item?.identifier ?? "",
-    tipo,
-    status,
-    profiles: toProfileList(item?.perfis ?? item?.profiles ?? item?.allowedProfiles),
+    metaId: String(item.metaId ?? item.id ?? item.objectId ?? `${generateFallbackId()}-${index}`),
+    nomeAmigavel: (item.nomeAmigavel ?? item.name ?? "Objeto sem nome").toString(),
+    idObjeto: String(item.idObjeto ?? item.slug ?? item.apiName ?? item.identifier ?? ""),
+    tipo: tipoValue === "BASE" ? "BASE" : "CUSTOMIZADO",
+    status: statusRaw ? toCapitalized(statusRaw) : "Ativo",
+    profiles: toProfileList(item.perfis ?? item.profiles ?? item.allowedProfiles),
   };
 };
 
@@ -103,12 +115,12 @@ export default function MetadadosObjetosPage() {
       }
 
       const data = await response.json();
-      const rawList: any[] = Array.isArray(data)
+      const rawList: unknown[] = Array.isArray(data)
         ? data
-        : Array.isArray(data?.items)
-        ? data.items
-        : Array.isArray(data?.objetos)
-        ? data.objetos
+        : Array.isArray((data as Record<string, unknown> | undefined)?.items)
+        ? (data as Record<string, unknown>).items as unknown[]
+        : Array.isArray((data as Record<string, unknown> | undefined)?.objetos)
+        ? (data as Record<string, unknown>).objetos as unknown[]
         : [];
 
       const normalized = rawList.map((item, index) => normalizeMetaObject(item, index));

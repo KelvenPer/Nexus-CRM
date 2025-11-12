@@ -11,22 +11,33 @@ from app.models import (
     AccountCreate,
     AccountResponse,
     ActivityItem,
+    AutomationTriggerCreate,
+    AutomationTriggerResponse,
     CampaignCreate,
     CampaignResponse,
     ContactCreate,
     ContactResponse,
     DashboardSaveRequest,
+    EmailTemplateCreate,
+    EmailTemplateResponse,
     LeadCreate,
     LeadResponse,
     MetaObjectCreate,
     MetaObjectResponse,
     OpportunityCreate,
     OpportunityResponse,
+    ProductCreate,
+    ProductResponse,
     SegmentCreate,
     SegmentResponse,
+    SupportTicket,
     TokenResponse,
+    TradeVisit,
     UserProfile,
     WidgetPayload,
+    WorkflowCreate,
+    WorkflowResponse,
+    WorkflowRunResponse,
 )
 
 
@@ -94,10 +105,29 @@ class TenantMemoryStore:
         self.campaigns: Dict[str, CampaignResponse] = {}
         self.segments: Dict[str, SegmentResponse] = {}
         self.activities: List[ActivityItem] = []
+        self.products: Dict[str, ProductResponse] = {}
+        self.trade_visits: List[TradeVisit] = []
+        self.support_tickets: List[SupportTicket] = []
+        self.workflows: Dict[str, WorkflowResponse] = {}
+        self.triggers: Dict[str, AutomationTriggerResponse] = {}
+        self.email_templates: Dict[str, EmailTemplateResponse] = {}
 
     # Meta objetos -----------------------------------------------------
     def list_meta_objects(self) -> List[MetaObjectResponse]:
         return [record.to_response() for record in self.meta_objects.values()]
+
+    def list_meta_objects_for_roles(self, role_ids: List[str]) -> List[MetaObjectResponse]:
+        if not role_ids:
+            return []
+        normalized = {role.lower() for role in role_ids}
+        allowed: List[MetaObjectResponse] = []
+        for record in self.meta_objects.values():
+            if not record.payload.profiles:
+                continue
+            profile_ids = {profile.id.lower() for profile in record.payload.profiles}
+            if normalized.intersection(profile_ids):
+                allowed.append(record.to_response())
+        return allowed
 
     def create_meta_object(self, payload: MetaObjectCreate) -> MetaObjectResponse:
         meta_id = str(uuid4())
@@ -231,6 +261,16 @@ class TenantMemoryStore:
         self.contacts[contact_id] = contact
         return contact
 
+    # Product catalog -------------------------------------------------
+    def list_products(self) -> List[ProductResponse]:
+        return list(self.products.values())
+
+    def create_product(self, payload: ProductCreate) -> ProductResponse:
+        product_id = str(uuid4())
+        product = ProductResponse(id=product_id, **payload.model_dump())
+        self.products[product_id] = product
+        return product
+
     # Marketing data ---------------------------------------------------
     def list_campaigns(self) -> List[CampaignResponse]:
         return list(self.campaigns.values())
@@ -250,12 +290,84 @@ class TenantMemoryStore:
         self.segments[segment_id] = segment
         return segment
 
+    # Solucoes (Trade Marketing / Atendimento) -----------------------
+    def list_trade_visits(self) -> List[TradeVisit]:
+        return self.trade_visits
+
+    def add_trade_visit(self, visit: TradeVisit) -> None:
+        self.trade_visits.append(visit)
+
+    def list_support_tickets(self) -> List[SupportTicket]:
+        return self.support_tickets
+
+    def add_support_ticket(self, ticket: SupportTicket) -> None:
+        self.support_tickets.append(ticket)
+
+    # Automacao -------------------------------------------------------
+    def list_workflows(self) -> List[WorkflowResponse]:
+        return list(self.workflows.values())
+
+    def save_workflow(self, payload: WorkflowCreate) -> WorkflowResponse:
+        workflow_id = str(uuid4())
+        workflow = WorkflowResponse(id=workflow_id, ultimaExecucao=None, **payload.model_dump())
+        self.workflows[workflow_id] = workflow
+        return workflow
+
+    def trigger_workflow(self, workflow_id: str) -> WorkflowRunResponse:
+        if workflow_id not in self.workflows:
+            raise KeyError(workflow_id)
+        triggered_at = datetime.utcnow()
+        workflow = self.workflows[workflow_id]
+        workflow.ultimaExecucao = triggered_at
+        return WorkflowRunResponse(workflowId=workflow_id, status="triggered", triggeredAt=triggered_at)
+
+    def list_triggers(self) -> List[AutomationTriggerResponse]:
+        return list(self.triggers.values())
+
+    def create_trigger(self, payload: AutomationTriggerCreate) -> AutomationTriggerResponse:
+        trigger_id = str(uuid4())
+        trigger = AutomationTriggerResponse(id=trigger_id, **payload.model_dump())
+        self.triggers[trigger_id] = trigger
+        return trigger
+
+    def list_email_templates(self) -> List[EmailTemplateResponse]:
+        return list(self.email_templates.values())
+
+    def create_email_template(self, payload: EmailTemplateCreate) -> EmailTemplateResponse:
+        template_id = str(uuid4())
+        template = EmailTemplateResponse(
+            id=template_id,
+            ultimaAtualizacao=datetime.utcnow(),
+            **payload.model_dump(),
+        )
+        self.email_templates[template_id] = template
+        return template
+
     # Inicio dashboard -------------------------------------------------
     def list_activities(self) -> List[ActivityItem]:
         return self.activities
 
     def add_activity(self, activity: ActivityItem) -> None:
         self.activities.append(activity)
+
+    def list_reminders(self) -> List[dict[str, str]]:
+        reminders: List[dict[str, str]] = []
+        now = datetime.utcnow()
+        for activity in self.activities:
+            urgency = "Alto" if activity.dueDate <= now + timedelta(days=1) else "Normal"
+            reminders.append(
+                {
+                    "id": activity.id,
+                    "title": activity.action,
+                    "customer": activity.customer,
+                    "dueDate": activity.dueDate.isoformat(),
+                    "status": activity.status,
+                    "badge": activity.badge,
+                    "urgency": urgency,
+                }
+            )
+        reminders.sort(key=lambda item: item["dueDate"])
+        return reminders
 
 
 class DataStore:
@@ -293,7 +405,8 @@ class DataStore:
             ),
         ]
         for meta in defaults:
-            store.create_meta_object(meta)
+            record = store.create_meta_object(meta)
+            store.update_permissions(record.metaId, [profile.id for profile in DEFAULT_PROFILES])
 
         # Simulate an initial widget so the containers render something
         initial_widget = WidgetPayload(
@@ -377,6 +490,29 @@ class DataStore:
             ContactCreate(nome="Roberto Dias", email="rdias@clinicmais.com", telefone="(41) 97777-4411", conta="Rede Clinic+")
         )
 
+        store.create_product(
+            ProductCreate(
+                sku="SKU-CRM-001",
+                nome="Modulo Field Sales",
+                categoria="Software",
+                preco=1990.0,
+                margem=0.42,
+                disponibilidade="Disponivel",
+                descricao="Pacote de licencas com roteirizacao e checklists.",
+            )
+        )
+        store.create_product(
+            ProductCreate(
+                sku="SKU-CRM-014",
+                nome="Kit Trade Marketing",
+                categoria="Servicos",
+                preco=7200.0,
+                margem=0.55,
+                disponibilidade="Backorder",
+                descricao="Time dedicado para execucao de campanhas em loja.",
+            )
+        )
+
         store.create_campaign(
             CampaignCreate(
                 nome="Black Friday 2025",
@@ -432,6 +568,109 @@ class DataStore:
                 status="Planejado",
                 badge="Estrategia",
                 dueDate=now + timedelta(days=3),
+            )
+        )
+
+        store.add_trade_visit(
+            TradeVisit(
+                id=str(uuid4()),
+                cliente="Rede Norte Atacado",
+                canal="Cash&Carry",
+                objetivo="Auditar ponta extra",
+                status="Concluido",
+                responsavel="Bruna Azevedo",
+                proximaAcao="Enviar relatorio com fotos",
+                data=now - timedelta(days=1),
+            )
+        )
+        store.add_trade_visit(
+            TradeVisit(
+                id=str(uuid4()),
+                cliente="Supermercado Lima",
+                canal="Varejo",
+                objetivo="Ativar degustacao premium",
+                status="Em andamento",
+                responsavel="Lucas Porto",
+                proximaAcao="Confirmar equipe de promotoras",
+                data=now + timedelta(days=2),
+            )
+        )
+
+        store.add_support_ticket(
+            SupportTicket(
+                id=str(uuid4()),
+                cliente="Rede Clinic+",
+                canal="E-mail",
+                assunto="Integracao BI travada",
+                prioridade="Alta",
+                status="Aberto",
+                owner="Time Atendimento",
+                sla="4h",
+            )
+        )
+        store.add_support_ticket(
+            SupportTicket(
+                id=str(uuid4()),
+                cliente="Supermercado Lima",
+                canal="Portal",
+                assunto="Erro ao sincronizar contas",
+                prioridade="Media",
+                status="Em progresso",
+                owner="CS Aline",
+                sla="8h",
+            )
+        )
+
+        store.save_workflow(
+            WorkflowCreate(
+                nome="Onboarding de Leads Enterprise",
+                descricao="Cria tarefa para SDR e envia e-mail automatizado.",
+                status="Ativo",
+            )
+        )
+        store.save_workflow(
+            WorkflowCreate(
+                nome="Reengajar oportunidades congeladas",
+                descricao="Dispara alerta para gestor apos 30 dias sem movimentacao.",
+                status="Ativo",
+            )
+        )
+
+        store.create_trigger(
+            AutomationTriggerCreate(
+                nome="Lead com ticket > 50k",
+                objeto="Lead",
+                condicao="valor_estimado > 50000",
+                acao="Notificar Diretoria",
+                status="Ativo",
+            )
+        )
+        store.create_trigger(
+            AutomationTriggerCreate(
+                nome="Campanha com CPA acima do teto",
+                objeto="Campanha",
+                condicao="cpa > 120",
+                acao="Pausar automacao",
+                status="Monitorando",
+            )
+        )
+
+        store.create_email_template(
+            EmailTemplateCreate(
+                nome="Follow-up Padrao",
+                assunto="Seguimos com a proposta, {{contato}}?",
+                owner="Marketing Ops",
+                status="Ativo",
+                conteudo="Ola {{contato}}, passando para saber se conseguiu revisar nossa proposta.",
+            )
+        )
+        store.create_email_template(
+            EmailTemplateCreate(
+                nome="Alerta de renovacao",
+                assunto="Sua renovacao Nexus CRM vence em 30 dias",
+                owner="Customer Success",
+                status="Rascunho",
+                conteudo="Ola {{cliente}}, segue briefing da renovacao e condicoes especiais.",
             )
         )
 

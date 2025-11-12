@@ -18,34 +18,46 @@ type PermissionsModalProps = {
   currentProfileIds: string[];
 };
 
-const normalizeProfiles = (payload: any): UserProfile[] => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const normalizeProfiles = (payload: unknown): UserProfile[] => {
   const rawList = Array.isArray(payload)
     ? payload
-    : Array.isArray(payload?.profiles)
-    ? payload.profiles
-    : Array.isArray(payload?.items)
-    ? payload.items
+    : Array.isArray((payload as Record<string, unknown> | undefined)?.profiles)
+    ? (payload as Record<string, unknown>).profiles
+    : Array.isArray((payload as Record<string, unknown> | undefined)?.items)
+    ? (payload as Record<string, unknown>).items
     : [];
 
   return rawList
     .map((profile) => {
       const idCandidate =
-        profile?.id ??
-        profile?.profileId ??
-        profile?.slug ??
-        profile?.codigo ??
-        profile?.code ??
-        profile?.name ??
-        profile?.nome;
+        typeof profile === "string"
+          ? profile
+          : isRecord(profile)
+          ? profile.id ??
+            profile.profileId ??
+            profile.slug ??
+            profile.codigo ??
+            profile.code ??
+            profile.name ??
+            profile.nome
+          : null;
 
-      const nameCandidate = profile?.name ?? profile?.nome ?? profile?.label ?? profile?.descricao;
+      const nameCandidate =
+        typeof profile === "string"
+          ? profile
+          : isRecord(profile)
+          ? profile.name ?? profile.nome ?? profile.label ?? profile.descricao
+          : null;
 
       return {
         id: idCandidate ? String(idCandidate) : "",
         name: nameCandidate ? String(nameCandidate) : "",
       };
     })
-    .filter((profile: UserProfile) => profile.id && profile.name);
+    .filter((profile) => profile.id && profile.name);
 };
 
 const PermissionsModal = ({

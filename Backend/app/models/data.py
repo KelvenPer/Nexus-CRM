@@ -24,6 +24,10 @@ class SQLTestRequest(BaseModel):
 class SQLTestResponse(BaseModel):
     isValid: bool = Field(alias="isValid")
     rowsAffected: int = 0
+    normalizedQuery: str | None = None
+    message: str | None = None
+    time: str | None = None
+    results: List[dict[str, Any]] = Field(default_factory=list)
 
 
 class MetaObjectCreate(BaseModel):
@@ -162,6 +166,24 @@ class ContactResponse(ContactBase):
     id: str
 
 
+class ProductBase(BaseModel):
+    sku: str
+    nome: str
+    categoria: str
+    preco: float
+    margem: float
+    disponibilidade: str
+    descricao: str | None = None
+
+
+class ProductCreate(ProductBase):
+    pass
+
+
+class ProductResponse(ProductBase):
+    id: str
+
+
 class CampaignBase(BaseModel):
     nome: str
     status: str
@@ -192,6 +214,28 @@ class SegmentResponse(SegmentBase):
     id: str
 
 
+class TradeVisit(BaseModel):
+    id: str
+    cliente: str
+    canal: str
+    objetivo: str
+    status: str
+    responsavel: str
+    proximaAcao: str
+    data: datetime
+
+
+class SupportTicket(BaseModel):
+    id: str
+    cliente: str
+    canal: str
+    assunto: str
+    prioridade: str
+    status: str
+    owner: str
+    sla: str
+
+
 class ActivityItem(BaseModel):
     id: str
     customer: str
@@ -219,6 +263,60 @@ class DashboardSummary(BaseModel):
     kpiCards: List[KPIItem]
     funnelStages: List[FunnelStage]
     activities: List[dict[str, str]]
+
+
+class WorkflowBase(BaseModel):
+    nome: str
+    descricao: str
+    status: str = "Ativo"
+
+
+class WorkflowCreate(WorkflowBase):
+    pass
+
+
+class WorkflowResponse(WorkflowBase):
+    id: str
+    ultimaExecucao: datetime | None = None
+
+
+class WorkflowRunResponse(BaseModel):
+    workflowId: str
+    status: str
+    triggeredAt: datetime
+
+
+class AutomationTriggerBase(BaseModel):
+    nome: str
+    objeto: str
+    condicao: str
+    acao: str
+    status: str = "Ativo"
+
+
+class AutomationTriggerCreate(AutomationTriggerBase):
+    pass
+
+
+class AutomationTriggerResponse(AutomationTriggerBase):
+    id: str
+
+
+class EmailTemplateBase(BaseModel):
+    nome: str
+    assunto: str
+    owner: str
+    status: str = "Ativo"
+
+
+class EmailTemplateCreate(EmailTemplateBase):
+    conteudo: str
+
+
+class EmailTemplateResponse(EmailTemplateBase):
+    id: str
+    conteudo: str
+    ultimaAtualizacao: datetime
 
 
 # ---------------------------------------------------------------------------

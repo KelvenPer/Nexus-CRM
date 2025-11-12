@@ -136,7 +136,7 @@ export default function DashboardGalleryPage() {
               <div className="flex items-center justify-between text-sm text-gray-400">
                 <span>{dashboard.widgets ? `${dashboard.widgets} widgets` : "Sem widgets"}</span>
                 <span className="text-lime-400 group-hover:translate-x-1 transition-transform">
-                  Abrir ->
+                  Abrir &rarr;
                 </span>
               </div>
             </div>
