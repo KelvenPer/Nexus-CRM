@@ -1,13 +1,16 @@
+import React from "react";
+
 export type Column = {
   key: string;
   label: string;
+  render?: (row: Record<string, any>) => React.ReactNode;
 };
 
 type GenericDataTableProps = {
   title: string;
   description?: string;
   columns: Column[];
-  data: Array<Record<string, string>>;
+  data: Array<Record<string, any>>;
 };
 
 export function GenericDataTable({
@@ -41,7 +44,9 @@ export function GenericDataTable({
             {data.map((row, index) => (
               <tr key={index}>
                 {columns.map((column) => (
-                  <td key={column.key}>{row[column.key]}</td>
+                  <td key={column.key}>
+                    {column.render ? column.render(row) : row[column.key]}
+                  </td>
                 ))}
               </tr>
             ))}

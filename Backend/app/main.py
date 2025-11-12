@@ -1,7 +1,16 @@
 """Entry-point for the Nexus CRM FastAPI application."""
 from fastapi import FastAPI
 
-from app.api.routes.health import router as health_router
+from app.api.routes import (
+    admin,
+    auth,
+    automacao,
+    dados,
+    health,
+    inicio,
+    marketing,
+    vendas,
+)
 from app.core.config import settings
 
 
@@ -13,7 +22,14 @@ def get_application() -> FastAPI:
         openapi_url=f"{settings.api_prefix}/openapi.json",
     )
 
-    app.include_router(health_router, prefix=settings.api_prefix)
+    app.include_router(health.router, tags=["Health"])
+    app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+    app.include_router(inicio.router, prefix="/api/v1/inicio", tags=["General"])
+    app.include_router(vendas.router, prefix="/api/v1/vendas", tags=["Sales"])
+    app.include_router(marketing.router, prefix="/api/v1/marketing", tags=["Marketing"])
+    app.include_router(automacao.router, prefix="/api/v1/automacao", tags=["Automation"])
+    app.include_router(dados.router, prefix="/api/v1/dados", tags=["Data Area"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 
     return app
 

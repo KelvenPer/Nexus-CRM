@@ -67,3 +67,63 @@ SELECT c.nome as cliente,
  ORDER BY a.ultima_interacao DESC;
 `;
 
+export const metaObjectColumns: Column[] = [
+  { key: "nomeAmigavel", label: "Nome Amigável" },
+  { key: "idObjeto", label: "ID do Objeto" },
+  { key: "tipo", label: "Tipo" },
+  { key: "status", label: "Status" },
+  { key: "perfis", label: "Perfis de Acesso" },
+  { key: "acoes", label: "Ações" },
+];
+
+export const metaObjectRows = [
+  {
+    nomeAmigavel: "Oportunidades Ativas",
+    idObjeto: "tb_oportunidade",
+    tipo: "BASE",
+    status: "Ativo",
+    perfis: "Vendas, Diretoria",
+    acoes: "Editar Permissões",
+  },
+  {
+    nomeAmigavel: "Contatos da Região Sudeste",
+    idObjeto: "obj_contatos_sudeste",
+    tipo: "CUSTOMIZADO",
+    status: "Ativo",
+    perfis: "Vendas",
+    acoes: "Editar Permissões Excluir",
+  },
+  {
+    nomeAmigavel: "Vendas por Campanha de Marketing",
+    idObjeto: "obj_vendas_campanha",
+    tipo: "CUSTOMIZADO",
+    status: "Ativo",
+    perfis: "Marketing, Diretoria",
+    acoes: "Editar Permissões Excluir",
+  },
+  {
+    nomeAmigavel: "Leads Qualificados (MQL)",
+    idObjeto: "obj_leads_mql",
+    tipo: "CUSTOMIZADO",
+    status: "Rascunho",
+    perfis: "Marketing",
+    acoes: "Editar Permissões Excluir",
+  },
+  {
+    nomeAmigavel: "Catálogo de Produtos",
+    idObjeto: "tb_produto",
+    tipo: "BASE",
+    status: "Ativo",
+    perfis: "Vendas, Marketing, Diretoria",
+    acoes: "Editar Permissões",
+  },
+];
+
+export const userProfiles = [
+  { id: "vendas", name: "Vendas" },
+  { id: "diretoria", name: "Diretoria" },
+  { id: "marketing", name: "Marketing" },
+  { id: "suporte", name: "Suporte" },
+  { id: "financeiro", name: "Financeiro" },
+];
+
