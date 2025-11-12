@@ -82,6 +82,10 @@ class DashboardRecord:
     name: str
     layout: List[dict] = field(default_factory=list)
     widgets: Dict[str, WidgetRecord] = field(default_factory=dict)
+    owner_id: str | None = None
+    owner_name: str | None = None
+    shared_with: List[str] = field(default_factory=list)
+    thumbnail_url: str | None = None
 
     def to_response(self) -> DashboardSaveRequest:
         return DashboardSaveRequest(
@@ -89,6 +93,10 @@ class DashboardRecord:
             name=self.name,
             layout=self.layout,
             widgets=[widget.payload for widget in self.widgets.values()],
+            ownerId=self.owner_id,
+            ownerName=self.owner_name,
+            sharedWith=self.shared_with,
+            thumbnailUrl=self.thumbnail_url,
         )
 
 
@@ -111,6 +119,18 @@ class TenantMemoryStore:
         self.workflows: Dict[str, WorkflowResponse] = {}
         self.triggers: Dict[str, AutomationTriggerResponse] = {}
         self.email_templates: Dict[str, EmailTemplateResponse] = {}
+        self._thumbnail_palette = [
+            "0f172a/63ffb6",
+            "101827/f4f6fb",
+            "111b2f/6ee7b7",
+            "081229/3b82f6",
+            "0f192f/facc15",
+        ]
+        self.dashboard_favorites: Dict[str, set[str]] = {}
+
+    def _generate_thumbnail(self, seed: str) -> str:
+        palette = self._thumbnail_palette[hash(seed) % len(self._thumbnail_palette)]
+        return f"https://placehold.co/600x360/{palette}?text=Dashboard"
 
     # Meta objetos -----------------------------------------------------
     def list_meta_objects(self) -> List[MetaObjectResponse]:
@@ -156,6 +176,18 @@ class TenantMemoryStore:
     def list_dashboards(self) -> List[DashboardSaveRequest]:
         return [dashboard.to_response() for dashboard in self.dashboards.values()]
 
+    def is_favorite(self, user_id: str | None, dashboard_id: str) -> bool:
+        if not user_id:
+            return False
+        return dashboard_id in self.dashboard_favorites.get(user_id, set())
+
+    def set_favorite(self, user_id: str, dashboard_id: str, favorite: bool) -> None:
+        favorites = self.dashboard_favorites.setdefault(user_id, set())
+        if favorite:
+            favorites.add(dashboard_id)
+        else:
+            favorites.discard(dashboard_id)
+
     def get_dashboard(self, dashboard_id: str) -> DashboardSaveRequest | None:
         dashboard = self.dashboards.get(dashboard_id)
         return dashboard.to_response() if dashboard else None
@@ -164,7 +196,15 @@ class TenantMemoryStore:
         dashboard_id = payload.id or str(uuid4())
         dashboard = self.dashboards.get(
             dashboard_id,
-            DashboardRecord(dashboard_id=dashboard_id, name=payload.name, layout=payload.layout or []),
+            DashboardRecord(
+                dashboard_id=dashboard_id,
+                name=payload.name,
+                layout=payload.layout or [],
+                owner_id=payload.ownerId,
+                owner_name=payload.ownerName,
+                shared_with=list(payload.sharedWith or []),
+                thumbnail_url=payload.thumbnailUrl or self._generate_thumbnail(dashboard_id),
+            ),
         )
 
         # Replace widgets for this dashboard
@@ -178,6 +218,12 @@ class TenantMemoryStore:
 
         dashboard.name = payload.name
         dashboard.layout = payload.layout or []
+        dashboard.owner_id = payload.ownerId or dashboard.owner_id
+        dashboard.owner_name = payload.ownerName or dashboard.owner_name
+        dashboard.shared_with = list(payload.sharedWith or dashboard.shared_with)
+        dashboard.thumbnail_url = payload.thumbnailUrl or dashboard.thumbnail_url or self._generate_thumbnail(
+            dashboard_id
+        )
         self.dashboards[dashboard_id] = dashboard
         return dashboard.to_response()
 
@@ -425,7 +471,15 @@ class DataStore:
             ],
             publishTargets=["DASHBOARD_INICIO", "MOD_VENDAS"],
         )
-        dashboard = DashboardSaveRequest(id=str(uuid4()), name="Painel Comercial", widgets=[initial_widget])
+        dashboard = DashboardSaveRequest(
+            id=str(uuid4()),
+            name="Painel Comercial",
+            widgets=[initial_widget],
+            ownerId="aline@nexuscrm.com",
+            ownerName="aline@nexuscrm.com",
+            thumbnailUrl=store._generate_thumbnail("painel_comercial"),
+            sharedWith=["diretoria@nexuscrm.com", "marketing@nexuscrm.com"],
+        )
         store.save_dashboard(dashboard)
 
         # Sales seed data

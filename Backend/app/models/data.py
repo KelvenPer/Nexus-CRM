@@ -80,6 +80,15 @@ class DashboardSaveRequest(BaseModel):
     name: str
     widgets: List[WidgetPayload]
     layout: List[Any] | None = None
+    ownerId: str | None = None
+    ownerName: str | None = None
+    sharedWith: List[str] | None = None
+    thumbnailUrl: str | None = None
+    favorite: bool | None = None
+
+
+class DashboardFavoriteUpdate(BaseModel):
+    favorite: bool
 
 
 class DashboardListResponse(BaseModel):
@@ -344,6 +353,7 @@ class TokenRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    userId: str
     userName: str
     tenantId: str
     tenantName: str

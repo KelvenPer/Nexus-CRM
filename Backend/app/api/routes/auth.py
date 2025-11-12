@@ -65,6 +65,7 @@ async def login_for_access_token(
     )
     return TokenResponse(
         access_token=token,
+        userId=str(db_user["user_id"]),
         userName=db_user.get("email", ""),
         tenantId=str(db_user["tenant_id"]),
         tenantName=db_user.get("nome_empresa", ""),
