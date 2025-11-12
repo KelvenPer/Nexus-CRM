@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { logout } from "@/lib/auth";
 
 type Submodule = {
   label: string;
@@ -20,7 +22,7 @@ const modules: Module[] = [
     title: "INICIO / GERAL",
     icon: "🧭",
     submodules: [
-      { label: "Dashboard", href: "/", icon: "📊" },
+      { label: "Dashboard", href: "/dashboard", icon: "📊" },
       { label: "Minhas Atividades", href: "/inicio/atividades", icon: "📝" },
       { label: "Calendario", href: "/inicio/calendario", icon: "📅" },
       { label: "Lembretes", href: "/inicio/lembretes", icon: "⏰" },
@@ -81,14 +83,23 @@ const userMenuLinks = [
 ];
 
 const isActive = (pathname: string, href: string) => {
-  if (href === "/") {
-    return pathname === "/" || pathname.startsWith("/dashboard");
+  if (href === "/dashboard") {
+    return pathname === "/dashboard";
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 };
 
 export default function Sidebar() {
   const pathname = usePathname() ?? "/";
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    await logout();
+    router.push("/login");
+  };
 
   return (
     <aside className="sidebar">
@@ -154,7 +165,14 @@ export default function Sidebar() {
               </li>
             ))}
           </ul>
-          <button className="ghost-button logout-button">Logout</button>
+          <button
+            type="button"
+            className="ghost-button logout-button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? "Saindo..." : "Logout"}
+          </button>
         </div>
       </div>
     </aside>

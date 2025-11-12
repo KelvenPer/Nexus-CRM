@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import TenantContext, get_tenant_context
 from app.dependencies.tenancy import get_tenant_session
 from app.models import (
+    DashboardFavoriteUpdate,
     DashboardListResponse,
     DashboardSaveRequest,
     MetaObjectCreate,
@@ -146,7 +147,10 @@ async def list_dashboards(
     context: TenantContext = Depends(get_tenant_context),
 ) -> DashboardListResponse:
     store = data_store.get_store(context.tenant_id)
-    return DashboardListResponse(dashboards=store.list_dashboards())
+    dashboards = store.list_dashboards()
+    for dashboard in dashboards:
+        dashboard.favorite = store.is_favorite(context.user_id, dashboard.id or "")
+    return DashboardListResponse(dashboards=dashboards)
 
 
 @router.post(
@@ -160,6 +164,8 @@ async def save_dashboard(
     context: TenantContext = Depends(get_tenant_context),
 ) -> DashboardSaveRequest:
     store = data_store.get_store(context.tenant_id)
+    payload.ownerId = payload.ownerId or context.user_id
+    payload.ownerName = payload.ownerName or context.user_id
     return store.save_dashboard(payload)
 
 
@@ -191,7 +197,25 @@ async def update_dashboard(
 ) -> DashboardSaveRequest:
     store = data_store.get_store(context.tenant_id)
     payload.id = dashboard_id
+    payload.ownerId = payload.ownerId or context.user_id
+    payload.ownerName = payload.ownerName or context.user_id
     return store.save_dashboard(payload)
+
+
+@router.post(
+    "/dashboards/{dashboard_id}/favorite",
+    summary="Toggle favorite for a dashboard",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def update_dashboard_favorite(
+    dashboard_id: str,
+    payload: DashboardFavoriteUpdate,
+    context: TenantContext = Depends(get_tenant_context),
+) -> None:
+    if not context.user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario nao identificado")
+    store = data_store.get_store(context.tenant_id)
+    store.set_favorite(context.user_id, dashboard_id, payload.favorite)
 
 
 @router.post(

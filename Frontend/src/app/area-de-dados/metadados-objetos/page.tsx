@@ -14,6 +14,15 @@ type MetaObjectRow = {
   tipo: "BASE" | "CUSTOMIZADO";
   status: string;
   profiles: UserProfile[];
+  fields: string[];
+};
+
+type FieldRow = {
+  label: string;
+  apiName: string;
+  type: string;
+  description: string;
+  tags: string[];
 };
 
 const generateFallbackId = () =>
@@ -63,17 +72,23 @@ const toCapitalized = (value: string): string =>
 const normalizeMetaObject = (item: unknown, index: number): MetaObjectRow => {
   if (!isRecord(item)) {
     return {
-      metaId: generateFallbackId() + index,
+      metaId: `${generateFallbackId()}-${index}`,
       nomeAmigavel: "Objeto sem nome",
       idObjeto: "",
       tipo: "CUSTOMIZADO",
       status: "Ativo",
       profiles: [],
+      fields: [],
     };
   }
 
   const tipoValue = (item.tipo ?? item.kind ?? item.origin ?? "").toString().toUpperCase();
   const statusRaw = (item.status ?? item.lifecycle ?? "Ativo").toString();
+
+  const fields =
+    Array.isArray(item.fields) && item.fields.every((field) => typeof field === "string")
+      ? (item.fields as string[])
+      : [];
 
   return {
     metaId: String(item.metaId ?? item.id ?? item.objectId ?? `${generateFallbackId()}-${index}`),
@@ -82,6 +97,7 @@ const normalizeMetaObject = (item: unknown, index: number): MetaObjectRow => {
     tipo: tipoValue === "BASE" ? "BASE" : "CUSTOMIZADO",
     status: statusRaw ? toCapitalized(statusRaw) : "Ativo",
     profiles: toProfileList(item.perfis ?? item.profiles ?? item.allowedProfiles),
+    fields,
   };
 };
 
@@ -91,21 +107,29 @@ const statusClasses: Record<string, string> = {
   Arquivado: "text-gray-300 bg-gray-300/10 border border-gray-400/20",
 };
 
+const TAB_LABELS = [
+  { key: "fields", label: "Campos" },
+  { key: "relationships", label: "Relacionamentos" },
+  { key: "dictionary", label: "Dicionario de Dados" },
+  { key: "rules", label: "Regras de Negocio" },
+] as const;
+
 export default function MetadadosObjetosPage() {
   const router = useRouter();
   const [objects, setObjects] = useState<MetaObjectRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
   const [permissionsOpen, setPermissionsOpen] = useState(false);
-  const [selectedObject, setSelectedObject] = useState<MetaObjectRow | null>(null);
+  const [permissionTarget, setPermissionTarget] = useState<MetaObjectRow | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<MetaObjectRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<(typeof TAB_LABELS)[number]["key"]>("fields");
+  const [search, setSearch] = useState("");
+
   const fetchMetaObjects = useCallback(async () => {
-    setRefreshing(true);
     setErrorMessage(null);
 
     try {
@@ -121,57 +145,64 @@ export default function MetadadosObjetosPage() {
       const rawList: unknown[] = Array.isArray(data)
         ? data
         : Array.isArray((data as Record<string, unknown> | undefined)?.items)
-        ? (data as Record<string, unknown>).items as unknown[]
+        ? ((data as Record<string, unknown>).items as unknown[])
         : Array.isArray((data as Record<string, unknown> | undefined)?.objetos)
-        ? (data as Record<string, unknown>).objetos as unknown[]
+        ? ((data as Record<string, unknown>).objetos as unknown[])
         : [];
 
       const normalized = rawList.map((item, index) => normalizeMetaObject(item, index));
       setObjects(normalized);
+      if (!selectedId && normalized.length) {
+        setSelectedId(normalized[0].metaId);
+      }
     } catch (error) {
       console.error(error);
       setErrorMessage("Nao foi possivel carregar o catalogo de objetos.");
     } finally {
       setIsLoading(false);
-      setRefreshing(false);
     }
-  }, []);
+  }, [selectedId]);
 
   useEffect(() => {
     fetchMetaObjects();
   }, [fetchMetaObjects]);
 
-  const handleOpenPermissions = (row: MetaObjectRow) => {
-    setSelectedObject(row);
-    setPermissionsOpen(true);
-  };
-
-  const closePermissionsModal = () => {
-    setPermissionsOpen(false);
-    setSelectedObject(null);
-  };
-
-  const handleEdit = (row: MetaObjectRow) => {
-    if (row.tipo === "BASE") {
-      return;
+  const filteredObjects = useMemo(() => {
+    if (!search.trim()) {
+      return objects;
     }
-    router.push(`/dados/estudio-sql?id=${row.idObjeto}`);
-  };
+    const lower = search.toLowerCase();
+    return objects.filter(
+      (object) =>
+        object.nomeAmigavel.toLowerCase().includes(lower) ||
+        object.idObjeto.toLowerCase().includes(lower)
+    );
+  }, [objects, search]);
 
-  const handleDeleteRequest = (row: MetaObjectRow) => {
-    if (row.tipo === "BASE") {
-      return;
+  const selectedObject = useMemo(() => {
+    if (!filteredObjects.length) {
+      return null;
     }
-    setDeleteTarget(row);
+    if (selectedId) {
+      return filteredObjects.find((object) => object.metaId === selectedId) ?? filteredObjects[0];
+    }
+    return filteredObjects[0];
+  }, [filteredObjects, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId && filteredObjects.length) {
+      setSelectedId(filteredObjects[0].metaId);
+    }
+  }, [filteredObjects, selectedId]);
+
+  const handleSelectObject = (objectId: string) => {
+    setSelectedId(objectId);
+    setActiveTab("fields");
   };
 
-  const closeDeleteDialog = () => {
-    setDeleteTarget(null);
-    setIsDeleting(false);
-  };
-
-  const handleDelete = async () => {
+  const handleDeleteObject = async () => {
     if (!deleteTarget) return;
+
     setIsDeleting(true);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("nexus_token") : null;
@@ -179,249 +210,301 @@ export default function MetadadosObjetosPage() {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
+
       if (!response.ok) {
         throw new Error(`Falha ao excluir (${response.status})`);
       }
 
       setObjects((prev) => prev.filter((object) => object.metaId !== deleteTarget.metaId));
-      closeDeleteDialog();
+      if (selectedId === deleteTarget.metaId) {
+        setSelectedId(null);
+      }
+      setDeleteTarget(null);
     } catch (error) {
       console.error(error);
-      alert("Nao foi possivel excluir o objeto. Verifique se ele nao esta em uso.");
+      alert("Nao foi possivel excluir o objeto. Verifique se ele ainda alimenta dashboards.");
+    } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleSavePermissions = async (profiles: UserProfile[]) => {
-    if (!selectedObject) return;
+  const selectedFieldRows = useMemo((): FieldRow[] => {
+    if (!selectedObject) return [];
 
-    const profileIds = profiles.map((profile) => profile.id);
+    const source = selectedObject.fields.length
+      ? selectedObject.fields
+      : ["id", "nome", "status", "criado_em"];
 
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("nexus_token") : null;
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/dados/meta-objetos/${selectedObject.metaId}/permissoes`,
-        {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ profiles: profileIds }),
-      });
+    return source.map((field) => {
+      const apiName = field.trim();
+      const label = apiName
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
 
-      if (!response.ok) {
-        throw new Error(`Falha ao salvar permissoes (${response.status})`);
-      }
+      const guessedType = apiName.includes("data")
+        ? "Data"
+        : apiName.includes("id")
+        ? "ID"
+        : apiName.includes("valor") || apiName.includes("numero")
+        ? "Numero"
+        : "Texto";
 
-      setObjects((prev) =>
-        prev.map((object) =>
-          object.metaId === selectedObject.metaId ? { ...object, profiles } : object
-        )
-      );
-      setSelectedObject((prev) => (prev ? { ...prev, profiles } : prev));
-      closePermissionsModal();
-    } catch (error) {
-      console.error(error);
-      alert("Nao foi possivel atualizar as permissoes.");
-      throw error;
-    }
-  };
+      const description = `Campo ${label.toLowerCase()} da entidade ${selectedObject.nomeAmigavel}.`;
+      const tags = apiName.includes("id") ? ["Chave"] : apiName.includes("data") ? ["Auditoria"] : [];
 
-  const totalCustomObjects = useMemo(
-    () => objects.filter((object) => object.tipo === "CUSTOMIZADO").length,
-    [objects]
-  );
+      return {
+        label,
+        apiName,
+        type: guessedType,
+        description,
+        tags,
+      };
+    });
+  }, [selectedObject]);
 
-  const renderTableBody = () => {
-    if (isLoading) {
-      return (
-        <tr>
-          <td colSpan={6} className="py-12 text-center text-gray-400">
-            Carregando catalogo...
-          </td>
-        </tr>
-      );
-    }
+  const relationshipHints = useMemo(() => {
+    if (!selectedObject) return [];
+    const title = selectedObject.nomeAmigavel;
+    return [
+      `1:N • ${title} possui vários Contatos vinculados.`,
+      `N:1 • ${title} pertence a uma Região comercial.`,
+      `1:1 • ${title} possui detalhe financeiro agregado.`,
+    ];
+  }, [selectedObject]);
 
-    if (errorMessage) {
-      return (
-        <tr>
-          <td colSpan={6} className="py-6 text-center text-red-300">
-            {errorMessage}
-          </td>
-        </tr>
-      );
-    }
+  const dictionaryStats = useMemo(() => {
+    if (!selectedObject) return [];
+    return [
+      { label: "Tipo do Objeto", value: selectedObject.tipo === "BASE" ? "Base" : "Customizado" },
+      { label: "Status", value: selectedObject.status },
+      { label: "ID Tecnico", value: selectedObject.idObjeto },
+      { label: "Campos", value: selectedFieldRows.length.toString() },
+      { label: "Perfis com acesso", value: selectedObject.profiles.length.toString() },
+      {
+        label: "Sensibilidade",
+        value: selectedObject.idObjeto.includes("id") ? "Restrito (LGPD)" : "Publico Interno",
+      },
+    ];
+  }, [selectedFieldRows.length, selectedObject]);
 
-    if (!objects.length) {
-      return (
-        <tr>
-          <td colSpan={6} className="py-10 text-center text-gray-400">
-            Nenhum objeto cadastrado ainda.
-          </td>
-        </tr>
-      );
-    }
+  const renderTabContent = () => {
+    if (!selectedObject) return null;
 
-    return objects.map((object) => (
-      <tr key={object.metaId}>
-        <td>
-          <div>
-            <p className="font-medium text-white">{object.nomeAmigavel}</p>
-            <p className="text-xs text-gray-400">{object.tipo === "BASE" ? "Fonte base" : "Customizado"}</p>
+    switch (activeTab) {
+      case "fields":
+        return (
+          <div className="meta-table-wrapper">
+            <table className="metadata-table">
+              <thead>
+                <tr>
+                  <th>Rotulo</th>
+                  <th>Nome da API</th>
+                  <th>Tipo</th>
+                  <th>Descricao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedFieldRows.map((field) => (
+                  <tr key={field.apiName}>
+                    <td className="font-medium text-white">{field.label}</td>
+                    <td className="font-mono text-gray-300">{field.apiName}</td>
+                    <td>
+                      <span className="tag-pill">{field.type}</span>
+                    </td>
+                    <td className="text-gray-300">
+                      {field.description}
+                      {field.tags.length ? (
+                        <span className="inline-flex items-center gap-1 ml-3 text-xs text-gray-400">
+                          {field.tags.map((tag) => (
+                            <span key={tag} className="tag-pill muted">
+                              {tag}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </td>
-        <td className="font-mono text-sm text-gray-300">{object.idObjeto}</td>
-        <td>
-          <span
-            className={`text-xs px-2 py-1 rounded-full border ${
-              object.tipo === "BASE"
-                ? "text-blue-300 border-blue-400/40 bg-blue-400/10"
-                : "text-purple-300 border-purple-400/40 bg-purple-400/10"
-            }`}
-          >
-            {object.tipo}
-          </span>
-        </td>
-        <td>
-          <span
-            className={`text-xs px-2 py-1 rounded-full ${statusClasses[object.status] ?? "text-gray-300 border border-gray-500/30 bg-gray-500/10"}`}
-          >
-            {object.status}
-          </span>
-        </td>
-        <td>
-          <div className="flex flex-wrap gap-2">
-            {object.profiles.length ? (
-              object.profiles.map((profile) => (
-                <span
-                  key={`${object.metaId}-${profile.id}`}
-                  className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-200 border border-gray-700"
-                >
-                  {profile.name}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-gray-500">Sem perfis</span>
-            )}
+        );
+      case "relationships":
+        return (
+          <div className="meta-relationships">
+            {relationshipHints.map((hint) => (
+              <div key={hint} className="relationship-item">
+                {hint}
+              </div>
+            ))}
           </div>
-        </td>
-        <td>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => handleEdit(object)}
-              disabled={object.tipo === "BASE"}
-              className="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-200 hover:border-lime-400 hover:text-lime-300 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenPermissions(object)}
-              className="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-200 hover:border-blue-400 hover:text-blue-200"
-            >
-              Permissoes
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDeleteRequest(object)}
-              disabled={object.tipo === "BASE"}
-              className="text-xs px-3 py-1.5 rounded-md border border-red-500/40 text-red-300 hover:border-red-400 hover:text-red-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Excluir
-            </button>
+        );
+      case "dictionary":
+        return (
+          <div className="meta-dictionary">
+            {dictionaryStats.map((stat) => (
+              <div key={stat.label}>
+                <p>{stat.label}</p>
+                <strong>{stat.value}</strong>
+              </div>
+            ))}
           </div>
-        </td>
-      </tr>
-    ));
+        );
+      case "rules":
+        return (
+          <div className="meta-rules">
+            <p className="text-gray-300 text-sm">
+              Defina validações e gatilhos para este objeto diretamente na API de Metadados. Eles
+              aparecerão aqui automaticamente.
+            </p>
+            <ul className="mt-4 space-y-2 text-sm text-gray-200">
+              <li>• Validar CPF/CNPJ antes de salvar.</li>
+              <li>• Bloquear alteração de status após fechamento.</li>
+              <li>• Enviar alerta se valor exceder limite definido pelo Financeiro.</li>
+            </ul>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
     <AppShell>
-      <div className="p-4 md:p-8 space-y-8">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm text-gray-400 uppercase tracking-wide">Governanca de dados</p>
-            <h1 className="text-3xl font-bold text-white mt-1">Catalogo de Objetos de Dados</h1>
-            <p className="text-gray-400 mt-2">
-              Gerencie quais objetos estao ativos, quem pode acessa-los e conecte suas criacoes do Estudio SQL ao BI.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <div className="px-4 py-2 rounded-lg border border-gray-700 text-gray-300 text-sm">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Customizados</p>
-              <strong className="text-white text-lg">{totalCustomObjects}</strong>
-            </div>
-            <button
-              type="button"
-              onClick={fetchMetaObjects}
-              className="px-4 py-2 rounded-lg border border-gray-700 text-gray-200 hover:border-lime-300"
-              disabled={refreshing}
-            >
-              {refreshing ? "Sincronizando..." : "Atualizar"}
-            </button>
-          </div>
-        </header>
-
-        <section className="panel">
-          <div className="panel-header">
+      <div className="meta-page">
+        <aside className="meta-sidebar glass-panel">
+          <div className="meta-sidebar-header">
             <div>
-              <p className="eyebrow">Catalogo vivo</p>
-              <h2>Objetos disponiveis no tenant</h2>
-              <p className="muted">
-                Base + Customizados com status, perfis de acesso e atalhos de manutencao.
-              </p>
+              <p className="eyebrow">Catálogo</p>
+              <h2>Metadados (Objetos)</h2>
+            </div>
+            <div className="search-field">
+              <input
+                type="text"
+                placeholder="Buscar objeto..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
             </div>
           </div>
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nome amigavel</th>
-                  <th>ID do objeto</th>
-                  <th>Tipo</th>
-                  <th>Status</th>
-                  <th>Perfis</th>
-                  <th>Acoes</th>
-                </tr>
-              </thead>
-              <tbody>{renderTableBody()}</tbody>
-            </table>
+          <div className="meta-object-list">
+            {isLoading ? (
+              <div className="meta-feedback empty">Carregando objetos...</div>
+            ) : errorMessage ? (
+              <div className="meta-feedback error">{errorMessage}</div>
+            ) : (
+              filteredObjects.map((object) => {
+                const isActive = selectedObject?.metaId === object.metaId;
+                return (
+                  <button
+                    key={object.metaId}
+                    type="button"
+                    className={`meta-object-item ${isActive ? "active" : ""}`}
+                    onClick={() => handleSelectObject(object.metaId)}
+                  >
+                    <div>
+                      <p className="object-name">{object.nomeAmigavel}</p>
+                      <p className="object-id">{object.idObjeto}</p>
+                    </div>
+                    <div className={`object-status ${statusClasses[object.status] ?? ""}`}>
+                      {object.status}
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
+          <button type="button" className="primary-action w-full" onClick={() => router.push("/dados/estudio-sql")}>
+            + Novo Objeto
+          </button>
+        </aside>
+
+        <section className="meta-detail glass-panel">
+          {selectedObject ? (
+            <>
+              <header className="meta-detail-header">
+                <div>
+                  <p className="eyebrow">{selectedObject.tipo === "BASE" ? "Objeto base" : "Customizado"}</p>
+                  <h1>{selectedObject.nomeAmigavel}</h1>
+                  <p className="text-gray-300">
+                    Definição e governança para {selectedObject.nomeAmigavel}. Configure campos, relacionamentos e permissões.
+                  </p>
+                </div>
+                <div className="meta-actions">
+                  <button type="button" className="ghost-button" onClick={() => setSelectedId(null)}>
+                    Limpar seleção
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => {
+                      setPermissionTarget(selectedObject);
+                      setPermissionsOpen(true);
+                    }}
+                  >
+                    Gerenciar permissões
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => router.push("/dados/estudio-sql")}>
+                    Abrir no Estúdio SQL
+                  </button>
+                  <button type="button" className="danger-button" onClick={() => setDeleteTarget(selectedObject)}>
+                    Excluir
+                  </button>
+                </div>
+              </header>
+
+              <nav className="meta-tabs">
+                {TAB_LABELS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={activeTab === tab.key ? "active" : ""}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="meta-tab-content">{renderTabContent()}</div>
+            </>
+          ) : (
+            <div className="meta-feedback empty">
+              Selecione um objeto no painel lateral para visualizar os detalhes.
+            </div>
+          )}
         </section>
       </div>
 
-      {selectedObject && (
+      {permissionsOpen && permissionTarget ? (
         <PermissionsModal
           isOpen={permissionsOpen}
-          onClose={closePermissionsModal}
-          onSave={handleSavePermissions}
-          objectName={selectedObject.nomeAmigavel}
-          currentProfileIds={selectedObject.profiles.map((profile) => profile.id)}
+          objectName={permissionTarget.nomeAmigavel}
+          currentProfileIds={permissionTarget.profiles.map((profile) => profile.id)}
+          onClose={() => setPermissionsOpen(false)}
+          onSave={(profiles) => {
+            setObjects((prev) =>
+              prev.map((object) =>
+                object.metaId === permissionTarget.metaId ? { ...object, profiles } : object
+              )
+            );
+            setPermissionsOpen(false);
+          }}
         />
-      )}
+      ) : null}
 
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-semibold text-white mb-2">Arquivar objeto?</h3>
-            <p className="text-sm text-gray-300">
-              Confirme para remover <strong>{deleteTarget.nomeAmigavel}</strong>. O backend vai validar se este objeto ainda alimenta dashboards antes de concluir.
+        <div className="meta-modal">
+          <div className="meta-modal-card">
+            <h3>Excluir {deleteTarget.nomeAmigavel}</h3>
+            <p className="text-gray-300 text-sm">
+              Confirme para remover <strong>{deleteTarget.nomeAmigavel}</strong>. Certifique-se de que nenhum dashboard dependa deste objeto.
             </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeDeleteDialog}
-                className="px-4 py-2 rounded-md border border-gray-600 text-gray-200 hover:border-gray-400"
-                disabled={isDeleting}
-              >
+            <div className="meta-modal-actions">
+              <button type="button" className="ghost-button" onClick={() => setDeleteTarget(null)}>
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
-                disabled={isDeleting}
-              >
+              <button type="button" className="danger-button" onClick={handleDeleteObject} disabled={isDeleting}>
                 {isDeleting ? "Excluindo..." : "Excluir"}
               </button>
             </div>

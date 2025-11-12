@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "react-grid-layout";
+import html2canvas from "html2canvas";
 import AppShell from "@/components/layout/AppShell";
 import WidgetBuilderToolbar from "@/components/relatorios-bi/WidgetBuilderToolbar";
 import DashboardCanvas from "@/components/relatorios-bi/DashboardCanvas";
 import WidgetCreationModal from "@/components/relatorios-bi/WidgetCreationModal";
 import { MetaObject, WidgetDefinition, WidgetType } from "@/components/relatorios-bi/types";
+import { getStoredSession } from "@/lib/auth";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/$/, "");
 
@@ -145,6 +147,8 @@ export default function DashboardBuilderPage({ params }: { params: { dashboardId
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [session] = useState(() => (typeof window !== "undefined" ? getStoredSession() : null));
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const [metaObjects, setMetaObjects] = useState<MetaObject[]>([]);
   const [isMetaLoading, setIsMetaLoading] = useState(true);
@@ -262,11 +266,28 @@ export default function DashboardBuilderPage({ params }: { params: { dashboardId
     setSaveError(null);
     setIsSaving(true);
     try {
+      let thumbnailUrl: string | undefined;
+      if (previewRef.current) {
+        try {
+          const canvas = await html2canvas(previewRef.current, {
+            backgroundColor: "#0f172a",
+            scale: 0.6,
+            useCORS: true,
+          });
+          thumbnailUrl = canvas.toDataURL("image/png", 0.8);
+        } catch (thumbnailError) {
+          console.error("Falha ao gerar thumbnail", thumbnailError);
+        }
+      }
+
       const payload = {
         id: isNewDashboard ? undefined : params.dashboardId,
         name: dashboardName,
         widgets,
         layout,
+        ownerId: session?.userId ?? session?.userName ?? "nexus@nexuscrm.com",
+        ownerName: session?.userName ?? "Nexus Data Team",
+        thumbnailUrl,
       };
 
       const endpoint = isNewDashboard
@@ -290,7 +311,7 @@ export default function DashboardBuilderPage({ params }: { params: { dashboardId
     } finally {
       setIsSaving(false);
     }
-  }, [dashboardName, isNewDashboard, layout, params.dashboardId, widgets]);
+  }, [dashboardName, isNewDashboard, layout, params.dashboardId, session, widgets]);
 
   const canAddWidget = useMemo(() => !isMetaLoading && !!metaObjects.length, [isMetaLoading, metaObjects]);
 
@@ -324,12 +345,14 @@ export default function DashboardBuilderPage({ params }: { params: { dashboardId
             Carregando dashboard...
           </div>
         ) : (
-          <DashboardCanvas
-            widgets={widgets}
-            layout={layout}
-            onLayoutChange={handleLayoutChange}
-            onRemoveWidget={handleRemoveWidget}
-          />
+          <div className="dashboard-preview" ref={previewRef}>
+            <DashboardCanvas
+              widgets={widgets}
+              layout={layout}
+              onLayoutChange={handleLayoutChange}
+              onRemoveWidget={handleRemoveWidget}
+            />
+          </div>
         )}
       </div>
 

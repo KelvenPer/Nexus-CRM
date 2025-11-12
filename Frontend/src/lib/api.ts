@@ -1,6 +1,4 @@
-import { getAuthHeaders } from "@/lib/auth";
-
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/$/, "");
+import { getAuthHeaders, API_BASE_URL } from "@/lib/auth";
 
 export async function fetchJson<T>(
   path: string,
