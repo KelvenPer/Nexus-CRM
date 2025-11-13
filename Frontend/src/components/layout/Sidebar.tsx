@@ -75,6 +75,13 @@ const modules: Module[] = [
       { label: "Metadados (Objetos)", href: "/area-de-dados/metadados-objetos", icon: "" },
     ],
   },
+  {
+    title: "ADMINISTRACAO",
+    icon: "",
+    submodules: [
+      { label: "Console de Configuracoes", href: "/configuracoes", icon: "" },
+    ],
+  },
 ];
 
 const userMenuLinks = [
@@ -94,18 +101,21 @@ export default function Sidebar() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem("nexus_sidebar_collapsed");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Persistir estado de colapso em localStorage
   useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
-      const raw = localStorage.getItem("nexus_sidebar_collapsed");
-      if (raw) setCollapsed(JSON.parse(raw));
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem("nexus_sidebar_collapsed", JSON.stringify(collapsed));
+      window.localStorage.setItem("nexus_sidebar_collapsed", JSON.stringify(collapsed));
     } catch {}
   }, [collapsed]);
 

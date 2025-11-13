@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Chart, ChartConfiguration, LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
+import { Chart, ChartConfiguration, LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Filler, Tooltip, Legend, ChartDataset } from "chart.js";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Title, Filler, Tooltip, Legend);
 
 type Props = {
-  data: { labels: string[]; datasets: any[] };
+  data: { labels: string[]; datasets: ChartDataset<"line", number[]>[] };
   height?: number;
 };
 
@@ -33,7 +33,7 @@ export default function LineChart({ data, height = 240 }: Props) {
     chartRef.current?.destroy();
     chartRef.current = new Chart(ctx, config);
     return () => chartRef.current?.destroy();
-  }, [JSON.stringify(data)]);
+  }, [data]);
 
   return (
     <div style={{ height }}>

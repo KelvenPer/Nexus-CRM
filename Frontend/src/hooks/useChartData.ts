@@ -19,7 +19,7 @@ export function useLineData(labels: string[], values: number[], label = "Serie")
         },
       ],
     }),
-    [labels.join("|"), values.join("|"), label, theme.primary]
+    [labels, values, label, theme.primary]
   );
 }
 
@@ -37,7 +37,7 @@ export function useBarData(labels: string[], values: number[], label = "Serie") 
         },
       ],
     }),
-    [labels.join("|"), values.join("|"), label, theme.primary]
+    [labels, values, label, theme.primary]
   );
 }
 

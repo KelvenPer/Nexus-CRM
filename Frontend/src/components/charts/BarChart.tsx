@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Chart, ChartConfiguration, BarController, BarElement, LinearScale, Title, CategoryScale, Tooltip, Legend } from "chart.js";
+import { Chart, ChartConfiguration, BarController, BarElement, LinearScale, Title, CategoryScale, Tooltip, Legend, ChartDataset } from "chart.js";
 
 Chart.register(BarController, BarElement, LinearScale, CategoryScale, Title, Tooltip, Legend);
 
 type Props = {
-  data: { labels: string[]; datasets: any[] };
+  data: { labels: string[]; datasets: ChartDataset<"bar", number[]>[] };
   height?: number;
 };
 
@@ -33,7 +33,7 @@ export default function BarChart({ data, height = 240 }: Props) {
     chartRef.current?.destroy();
     chartRef.current = new Chart(ctx, config);
     return () => chartRef.current?.destroy();
-  }, [JSON.stringify(data)]);
+  }, [data]);
 
   return (
     <div style={{ height }}>

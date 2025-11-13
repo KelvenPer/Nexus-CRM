@@ -9,27 +9,29 @@ const HCContext = createContext<HCContextValue | undefined>(undefined);
 const STORAGE_KEY = "nexus_ui_high_contrast";
 
 export function HighContrastProvider({ children }: { children: React.ReactNode }) {
-  const [highContrast, setHighContrastState] = useState<HC>(false);
+  const [highContrast, setHighContrastState] = useState<HC>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw === "1" || raw === "0") return raw === "1";
+      if (window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches) return true;
+    } catch {}
+    return false;
+  });
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw === "1" || raw === "0") setHighContrastState(raw === "1");
-      else if (window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches) setHighContrastState(true);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, highContrast ? "1" : "0");
-    } catch {}
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, highContrast ? "1" : "0");
+      } catch {}
+    }
     const root = typeof document !== "undefined" ? document.documentElement : null;
     root?.classList.toggle("high-contrast", !!highContrast);
   }, [highContrast]);
 
   const setHighContrast = useCallback((v: HC) => setHighContrastState(v), []);
   const toggleHighContrast = useCallback(() => setHighContrastState((v) => !v), []);
-  const value = useMemo(() => ({ highContrast, toggleHighContrast, setHighContrast }), [highContrast, toggleHighContrast]);
+  const value = useMemo(() => ({ highContrast, toggleHighContrast, setHighContrast }), [highContrast, toggleHighContrast, setHighContrast]);
   return <HCContext.Provider value={value}>{children}</HCContext.Provider>;
 }
 
