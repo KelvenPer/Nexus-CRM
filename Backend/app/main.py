@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     admin,
+    admin_config,
     auth,
     automacao,
     dados,
@@ -53,6 +54,9 @@ def get_application() -> FastAPI:
     app.include_router(solucoes.router, prefix="/api/v1/solucoes", tags=["Solutions"], dependencies=deps)
     app.include_router(perfis.router, prefix="/api/v1", tags=["Profiles"], dependencies=deps)
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"], dependencies=deps)
+    app.include_router(admin_config.router, prefix="/api/v1/admin/config", tags=["Admin Config"], dependencies=deps)
+    # Alias estavel sugerido pelo design do modulo
+    app.include_router(admin_config.router, prefix="/api/v1/config", tags=["Admin Config"], dependencies=deps)
 
     return app
 

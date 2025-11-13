@@ -85,7 +85,7 @@ const modules: Module[] = [
 ];
 
 const userMenuLinks = [
-  { label: "Configuracoes", href: "/perfil/configuracoes", icon: "⚙️" },
+  { label: "Configuracoes", href: "/configuracoes", icon: "⚙️" },
   { label: "Tenant Admin", href: "/tenant-admin", icon: "🧑‍💼" },
   { label: "Centro de Ajuda", href: "/ajuda", icon: "❓" },
 ];
@@ -221,6 +221,7 @@ export default function Sidebar() {
     </aside>
   );
 }
+
 
 
 

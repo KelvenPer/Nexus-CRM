@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import List
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -60,6 +62,38 @@ def require_roles(*expected_roles: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions.",
             )
+        return context
+
+    return _checker
+
+
+def require_permission(action_key: str):
+    async def _checker(
+        context: TenantContext = Depends(get_tenant_context),
+        session: AsyncSession = Depends(__import__("app.db.session", fromlist=["get_session"]).get_session),
+    ) -> TenantContext:
+        # Admin override shortcuts
+        if any(r.lower() in {"admin", "data_admin"} for r in context.roles):
+            return context
+
+        roles = [r.lower() for r in context.roles]
+        if not roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing roles.")
+
+        schema = settings.tenant_admin_schema
+        q = text(
+            f"""
+            SELECT 1
+            FROM {schema}.roles r
+            JOIN {schema}.role_permissions rp ON rp.role_id = r.role_id
+            JOIN {schema}.permissions p ON p.permission_id = rp.permission_id
+            WHERE lower(r.name) = ANY(:roles) AND p.action_key = :key
+            LIMIT 1
+            """
+        )
+        res = await session.execute(q, {"roles": roles, "key": action_key})
+        if res.scalar() is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied.")
         return context
 
     return _checker

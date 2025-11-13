@@ -1,6 +1,6 @@
 import { fetchJson } from "@/lib/api";
 
-const ADMIN_BASE = "/api/admin";
+const ADMIN_BASE = "/api/v1/admin/config";
 
 const DEFAULT_NOTIFICATION_CONFIG = {
   email: { host: "", port: 0, from: "" },
@@ -235,7 +235,14 @@ export async function updateFieldVisibility(payload: Record<string, string>) {
 
 // Custom tables
 export async function fetchCustomTables() {
-  return fetchJson<CustomTable[]>(`${ADMIN_BASE}/custom-tables`, []);
+  const raw = await fetchJson<any[]>(`${ADMIN_BASE}/custom/tables`, []);
+  return (raw || []).map((t) => ({
+    id: t.table_id ?? t.id ?? "",
+    name: t.name ?? "",
+    owner: "",
+    fields: 0,
+    lastUpdated: "",
+  })) as CustomTable[];
 }
 
 export async function fetchSystemTables() {
@@ -243,7 +250,7 @@ export async function fetchSystemTables() {
 }
 
 export async function createCustomTable(name: string) {
-  return fetchJson<CustomTable | null>(`${ADMIN_BASE}/custom-tables`, null, {
+  return fetchJson<CustomTable | null>(`${ADMIN_BASE}/custom/tables`, null, {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({ name }),
@@ -252,7 +259,14 @@ export async function createCustomTable(name: string) {
 
 // Templates
 export async function fetchTemplates() {
-  return fetchJson<TemplateRecord[]>(`${ADMIN_BASE}/templates`, []);
+  const raw = await fetchJson<any[]>(`${ADMIN_BASE}/templates`, []);
+  return (raw || []).map((t) => ({
+    id: t.template_id ?? t.id ?? "",
+    name: t.name ?? "",
+    type: String(t.type || "EMAIL").toUpperCase().includes("CONTRACT") ? "contract" : "email",
+    content: t.content ?? "",
+    variables: [],
+  })) as TemplateRecord[];
 }
 
 export async function updateTemplate(templateId: string, content: string) {
@@ -265,23 +279,48 @@ export async function updateTemplate(templateId: string, content: string) {
 
 // Notifications
 export async function fetchNotificationTriggers() {
-  return fetchJson<NotificationTrigger[]>(`${ADMIN_BASE}/notifications/triggers`, []);
+  const raw = await fetchJson<any[]>(`${ADMIN_BASE}/notification/triggers`, []);
+  return (raw || []).map((t) => ({
+    id: t.trigger_id ?? t.id ?? "",
+    event: t.event_name ?? t.event ?? "",
+    template: String(t.template_id ?? ""),
+    channels: { email: false, sms: false, push: false },
+    active: true,
+  })) as NotificationTrigger[];
 }
 
 export async function fetchNotificationConfig() {
-  return fetchJson<NotificationConfig>(`${ADMIN_BASE}/notifications/config`, DEFAULT_NOTIFICATION_CONFIG);
+  const services = await fetchJson<any[]>(`${ADMIN_BASE}/notification/services`, []);
+  const cfg: NotificationConfig = JSON.parse(JSON.stringify(DEFAULT_NOTIFICATION_CONFIG));
+  services.forEach((s) => {
+    const type = String(s.type || "").toUpperCase();
+    const c = s.credentials || {};
+    if (type === "SMTP") cfg.email = { host: c.host ?? "", port: Number(c.port ?? 0), from: c.from ?? "" };
+    if (type.startsWith("SMS")) cfg.sms = { provider: c.provider ?? "", token: c.token ?? "" };
+    if (type.startsWith("PUSH")) cfg.push = { provider: c.provider ?? "", apiKey: c.apiKey ?? "" };
+  });
+  return cfg;
 }
 
 export async function updateNotificationTrigger(triggerId: string, payload: Partial<NotificationTrigger>) {
+  const { channels } = payload;
+  const body: Record<string, unknown> = {};
+  if (channels) {
+    if (typeof channels.email === 'boolean') body.email = channels.email;
+    if (typeof channels.sms === 'boolean') body.sms = channels.sms;
+    if (typeof channels.push === 'boolean') body.push = channels.push;
+  }
   return fetchJson(`${ADMIN_BASE}/notifications/triggers/${triggerId}`, null, {
     method: "PATCH",
     headers: jsonHeaders,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 }
 
 export async function updateNotificationConfig(channel: keyof NotificationConfig, payload: Record<string, unknown>) {
-  return fetchJson(`${ADMIN_BASE}/notifications/config/${channel}`, null, {
+  const map: Record<string, string> = { email: "SMTP", sms: "SMS", push: "PUSH" };
+  const type = map[channel] ?? channel.toUpperCase();
+  return fetchJson(`${ADMIN_BASE}/notification/services/${type}`, null, {
     method: "PUT",
     headers: jsonHeaders,
     body: JSON.stringify(payload),
@@ -306,7 +345,13 @@ export async function updateSlaSettings(payload: SlaSettings) {
 
 // Integrations
 export async function fetchApiKeys() {
-  return fetchJson<ApiKey[]>(`${ADMIN_BASE}/api-keys`, []);
+  const raw = await fetchJson<any[]>(`${ADMIN_BASE}/api-keys`, []);
+  return (raw || []).map((k) => ({
+    id: k.key_id ?? k.id ?? "",
+    label: k.description ?? "",
+    mask: `${k.prefix ?? ""}...`,
+    createdAt: k.last_used_at ?? "",
+  })) as ApiKey[];
 }
 
 export async function generateApiKey(description: string) {
@@ -324,14 +369,20 @@ export async function revokeApiKey(keyId: string) {
 }
 
 export async function fetchWebhooks() {
-  return fetchJson<WebhookEndpoint[]>(`${ADMIN_BASE}/webhooks`, []);
+  const raw = await fetchJson<any[]>(`${ADMIN_BASE}/webhooks`, []);
+  return (raw || []).map((w) => ({
+    id: w.webhook_id ?? w.id ?? "",
+    event: w.event_name ?? w.event ?? "",
+    url: w.target_url ?? w.url ?? "",
+    active: String(w.status || "ACTIVE").toUpperCase() === "ACTIVE",
+  })) as WebhookEndpoint[];
 }
 
 export async function addWebhook(event: string, url: string) {
   return fetchJson<WebhookEndpoint | null>(`${ADMIN_BASE}/webhooks`, null, {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify({ event, url }),
+    body: JSON.stringify({ event_name: event, target_url: url }),
   });
 }
 
