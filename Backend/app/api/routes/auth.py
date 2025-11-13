@@ -56,8 +56,8 @@ async def login_for_access_token(
     roles = [db_user.get("perfil", "").lower()] if db_user.get("perfil") else []
     token = create_access_token(
         {
-            "sub": db_user["user_id"],
-            "user_id": db_user["user_id"],
+            "sub": str(db_user["user_id"]),
+            "user_id": str(db_user["user_id"]),
             "tenant_id": str(db_user["tenant_id"]),
             "perfil": db_user.get("perfil"),
             "roles": roles,

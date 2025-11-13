@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from jose import JWTError, jwt
@@ -26,7 +27,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: Dict[str, Any], expires_minutes: Optional[int] = None) -> str:
-    to_encode = data.copy()
+    # Ensure JWT claims are JSON-serializable (e.g., UUID -> str)
+    to_encode = {
+        k: (str(v) if isinstance(v, UUID) else v)
+        for k, v in data.copy().items()
+    }
     expire = datetime.now(tz=timezone.utc) + timedelta(
         minutes=expires_minutes or settings.access_token_expires_minutes
     )
@@ -99,4 +104,3 @@ async def validar_jwt_e_tenant(
         "perfil": perfil,
         "schema_name": schema_name,
     }
-

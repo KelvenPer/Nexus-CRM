@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TenantContext, get_tenant_context
@@ -206,16 +206,18 @@ async def update_dashboard(
     "/dashboards/{dashboard_id}/favorite",
     summary="Toggle favorite for a dashboard",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
 )
 async def update_dashboard_favorite(
     dashboard_id: str,
     payload: DashboardFavoriteUpdate,
     context: TenantContext = Depends(get_tenant_context),
-) -> None:
+) -> Response:
     if not context.user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario nao identificado")
     store = data_store.get_store(context.tenant_id)
     store.set_favorite(context.user_id, dashboard_id, payload.favorite)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

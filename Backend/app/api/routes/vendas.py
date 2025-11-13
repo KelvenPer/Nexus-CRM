@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from app.core.security import TenantContext, get_tenant_context
 from app.models import (
@@ -73,11 +73,13 @@ async def update_lead(
     "/leads/{lead_id}",
     summary="Delete a lead",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
 )
-async def delete_lead(lead_id: str, context: TenantContext = Depends(get_tenant_context)):
+async def delete_lead(lead_id: str, context: TenantContext = Depends(get_tenant_context)) -> Response:
     store = data_store.get_store(context.tenant_id)
     try:
         store.delete_lead(lead_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except KeyError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead nao encontrado.") from None
 
@@ -140,11 +142,13 @@ async def update_opportunity(
     "/oportunidades/{op_id}",
     summary="Delete an opportunity",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
 )
-async def delete_opportunity(op_id: str, context: TenantContext = Depends(get_tenant_context)):
+async def delete_opportunity(op_id: str, context: TenantContext = Depends(get_tenant_context)) -> Response:
     store = data_store.get_store(context.tenant_id)
     try:
         store.delete_opportunity(op_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except KeyError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.") from None
 
