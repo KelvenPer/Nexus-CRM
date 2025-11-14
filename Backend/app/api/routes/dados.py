@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TenantContext, get_tenant_context
-from app.dependencies.tenancy import get_tenant_session
+from app.dependencies.tenancy import get_tenant_session, get_tenant_session_sqlsafe
 from app.models import (
     DashboardFavoriteUpdate,
     DashboardListResponse,
@@ -35,7 +35,7 @@ router = APIRouter()
 )
 async def test_sql_query(
     query: SQLTestRequest,
-    session: AsyncSession = Depends(get_tenant_session),
+    session: AsyncSession = Depends(get_tenant_session_sqlsafe),
     context: TenantContext = Depends(get_tenant_context),
 ) -> SQLTestResponse:
     validation = await validar_e_executar_sql_seguro(query.query, session=session)

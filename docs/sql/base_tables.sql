@@ -3,6 +3,25 @@
 -- Even with schema isolation, every record carries tenant_id for RLS and auditing guarantees.
 
 -------------------------------
+-- 0) tb_conta
+-------------------------------
+CREATE TABLE IF NOT EXISTS tb_conta (
+    id                  UUID PRIMARY KEY,
+    tenant_id           UUID NOT NULL,
+    owner_id            UUID NOT NULL,
+    nome_empresa        TEXT NOT NULL,
+    setor_industria     TEXT,
+    receita_anual       NUMERIC(15, 2),
+    numero_funcionarios INTEGER,
+    site                TEXT,
+    criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    atualizado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tb_conta_tenant ON tb_conta (tenant_id);
+
+
+-------------------------------
 -- 1) tb_contato
 -------------------------------
 CREATE TABLE IF NOT EXISTS tb_contato (

@@ -27,6 +27,13 @@ FORBIDDEN_COMMANDS = (
     "SET SEARCH_PATH",
     "COMMIT",
     "ROLLBACK",
+    # Additional Postgres commands to block
+    "COPY",
+    "DO",
+    "SECURITY",
+    "ANALYZE",
+    "VACUUM",
+    "EXPLAIN",
 )
 
 
@@ -108,6 +115,12 @@ async def validar_e_executar_sql_seguro(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Sessao de banco nao configurada.",
         )
+
+    # Enforce a local statement timeout (defensive; also set in dependency)
+    try:
+        await session.execute(text("SET LOCAL statement_timeout = 3000"))
+    except Exception:
+        pass
 
     # Wrap the query to cap results to 100 rows
     capped_query = f"SELECT * FROM ( {normalized.rstrip(';')} ) AS q LIMIT 100;"

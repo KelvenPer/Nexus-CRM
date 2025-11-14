@@ -1,32 +1,11 @@
-<<<<<<< HEAD
-# Nexus CRM Frontend
-
-Interface Next.js/React que demonstra o console Low-Code multi-tenant descrito no MVP. O layout atual ja contempla:
-
-- Sidebar com modulos de Vendas e Dados.
-- GenericDataTable que exibira qualquer objeto retornado pela API.
-- Playground onde o Tenant Admin envia SQL seguro para criar novos visores (meta_objetos).
-
-## Scripts uteis
-
-```
-npm install       # instala dependencias
-npm run dev       # inicia http://localhost:3000
-npm run lint      # checa padroes do Next/ESLint
-```
-
-## Proximos passos
-- Integrar o componente GenericDataTable com o endpoint /api/meta-object/{id} (FastAPI).
-- Conectar o SqlPlaygroundForm ao backend para validar consultas e persistir meta_objetos.
-- Adicionar autenticacao por tenant e estados reais (loading, erro etc.).
-=======
 # Nexus CRM
 
-Monorepo inicial do CRM multi-tenant/low-code Nexus. Ele contem:
+Monorepo do CRM multi-tenant/low-code Nexus, com Backend (FastAPI) e Frontend (Next.js).
 
-- Backend/: API FastAPI pronta para receber o motor de multi-tenancy e metadados.
-- Frontend/: Interface Next.js para visualizar objetos dinamicos e operar o playground SQL.
-- docs/visao-mapeamento.md: transcricao completa da conversa estrategica que guia o MVP.
+## Estrutura
+- `Backend/`: API FastAPI com multi-tenancy via Postgres (schemas), JWT stateless e RBAC.
+- `Frontend/`: Interface Next.js/React para operar módulos (Vendas, Dados, Automação) e Estúdio SQL.
+- `docs/`: scripts SQL e documentação de arquitetura.
 
 ## Como rodar
 
@@ -34,7 +13,7 @@ Monorepo inicial do CRM multi-tenant/low-code Nexus. Ele contem:
 ```powershell
 cd Backend
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -46,8 +25,13 @@ npm install
 npm run dev
 ```
 
-## Proximos marcos
-1. Provisionamento de schemas + camada JWT vinculada ao tenant_id.
-2. Executor SQL seguro (SELECT only) com catalogo meta_objetos.
-3. Integracao interface-backend exibindo tabelas e salvando novos visores.
->>>>>>> 1df65ad6431357128061643b01f28d5420770948
+## Recursos do MVP
+- Multi-tenant por schema com `tenant_admin` e schemas de tenant clonados do `template_schema`.
+- Autenticação JWT stateless; roles carregadas de `tenant_admin.user_roles`/`roles`.
+- Estúdio SQL seguro (SELECT/CTE, LIMIT 100, escopo no schema do tenant).
+- UI com módulos de Vendas e Dados; dashboards e widgets mockados.
+
+## Próximos passos
+- Evoluir persistência real (oportunidades/contatos) via repositórios AsyncSession.
+- Expandir RBAC e aplicar `require_permission` em rotas sensíveis.
+- Ampliar catálogo de objetos e índices práticos no template.

@@ -3,7 +3,7 @@
 -- Note: CREATE DATABASE does not support IF NOT EXISTS
 -- Run once in pgAdmin or psql
 
-CREATE DATABASE nexus_crm_db
+CREATE DATABASE "nexus-crm"
     WITH 
     OWNER = postgres
     ENCODING = 'UTF8'

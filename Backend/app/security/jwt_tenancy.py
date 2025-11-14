@@ -62,6 +62,28 @@ async def get_user_by_email(session: AsyncSession, email: str) -> Optional[Dict[
     return dict(row) if row else None
 
 
+async def get_roles_for_user(session: AsyncSession, user_id: str) -> list[str]:
+    """Return role names (lowercased) assigned to a user via tenant_admin.user_roles.
+
+    Falls back to empty list if RBAC tables are not present.
+    """
+    schema = settings.tenant_admin_schema
+    q = text(
+        f"""
+        SELECT lower(r.name) AS role_name
+        FROM {schema}.user_roles ur
+        JOIN {schema}.roles r ON r.role_id = ur.role_id
+        WHERE ur.user_id = :user_id
+        """
+    )
+    try:
+        res = await session.execute(q, {"user_id": user_id})
+        return [row[0] for row in res.all()]
+    except Exception:
+        # If schema/tables are missing in a dev environment, do not break login
+        return []
+
+
 async def get_tenant_schema_by_id(session: AsyncSession, tenant_id: str) -> Optional[str]:
     q = text(
         "SELECT schema_name FROM tenant_admin.tb_tenant WHERE id = :tenant_id LIMIT 1"

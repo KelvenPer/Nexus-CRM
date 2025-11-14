@@ -427,8 +427,7 @@ class DataStore:
 
     def __init__(self) -> None:
         self._stores: Dict[str, TenantMemoryStore] = {}
-        self._auth_users: Dict[str, TenantUser] = {}
-        self._active_tokens: Dict[str, TenantUser] = {}
+        # Legacy in-memory auth removed; JWT stateless is used instead.
 
     def get_store(self, tenant_id: str) -> TenantMemoryStore:
         if tenant_id not in self._stores:
@@ -734,60 +733,7 @@ class DataStore:
             )
         )
 
-        tenant_logo = "https://raw.githubusercontent.com/kelver/NexusCRM/main/public/logo.png"
-        self.register_user(
-            TenantUser(
-                email="aline@nexuscrm.com",
-                name="Aline Husni",
-                password="nexus123",
-                tenant_id="tenant_demo",
-                tenant_name="Supermercado Lima",
-                tenant_logo_url=tenant_logo,
-                roles=["user", "data_admin"],
-            )
-        )
+        # Demo user seeding removed (legacy in-memory auth).
 
-    # ------------------------------------------------------------------
-    # Auth directory
-    # ------------------------------------------------------------------
-
-    def register_user(self, user: TenantUser) -> None:
-        self._auth_users[user.email.lower()] = user
-
-    def find_user_by_email(self, email: str) -> Optional[TenantUser]:
-        return self._auth_users.get(email.lower())
-
-    def generate_token(self, user: TenantUser) -> str:
-        token = secrets.token_urlsafe(32)
-        self._active_tokens[token] = user
-        return token
-
-    def validate_credentials(self, email: str, password: str) -> Optional[TenantUser]:
-        user = self.find_user_by_email(email)
-        if user and user.password == password:
-            return user
-        return None
-
-    def invalidate_token(self, token: str) -> None:
-        self._active_tokens.pop(token, None)
-
-
+    
 data_store = DataStore()
-@dataclass
-class TenantUser:
-    email: str
-    name: str
-    password: str
-    tenant_id: str
-    tenant_name: str
-    tenant_logo_url: Optional[str]
-    roles: List[str]
-
-    def to_check_email_payload(self) -> dict:
-        return {
-            "email": self.email,
-            "userName": self.name,
-            "tenantId": self.tenant_id,
-            "tenantName": self.tenant_name,
-            "tenantLogoUrl": self.tenant_logo_url,
-        }

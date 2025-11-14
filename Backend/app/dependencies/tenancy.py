@@ -15,3 +15,28 @@ async def get_tenant_session(
     await set_tenant_search_path(session, user["schema_name"])
     return session
 
+
+async def get_tenant_session_sqlsafe(
+    user: dict = Depends(validar_jwt_e_tenant),
+    session: AsyncSession = Depends(get_session),
+) -> AsyncSession:
+    """Tenant-scoped session restricted for SQL Studio.
+
+    - search_path only to tenant schema (no tenant_admin)
+    - set statement_timeout to 3s for safety
+    """
+    # Restrict search_path to tenant schema only
+    await session.execute(
+        __import__("sqlalchemy", fromlist=["text"]).text(
+            "SELECT set_config('search_path', :path, true)"
+        ),
+        {"path": f"{user['schema_name']}"},
+    )
+    # Set a conservative statement_timeout (in ms)
+    await session.execute(
+        __import__("sqlalchemy", fromlist=["text"]).text(
+            "SET LOCAL statement_timeout = :ms"
+        ),
+        {"ms": 3000},
+    )
+    return session

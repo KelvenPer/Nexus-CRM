@@ -12,6 +12,7 @@ from app.db.session import get_session
 from app.security.jwt_tenancy import (
     create_access_token,
     get_user_by_email,
+    get_roles_for_user,
     verify_password,
 )
 
@@ -53,7 +54,10 @@ async def login_for_access_token(
     if not verify_password(payload.password, db_user["senha_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais invalidas.")
 
-    roles = [db_user.get("perfil", "").lower()] if db_user.get("perfil") else []
+    # Load roles from RBAC tables (user_roles -> roles). Fallback to perfil if present.
+    roles = await get_roles_for_user(session, str(db_user["user_id"]))
+    if not roles and db_user.get("perfil"):
+        roles = [str(db_user.get("perfil")).lower()]
     token = create_access_token(
         {
             "sub": str(db_user["user_id"]),
@@ -75,6 +79,6 @@ async def login_for_access_token(
 
 
 @router.post("/logout", summary="Logout user")
-async def logout(payload: LogoutRequest) -> dict:
-    data_store.invalidate_token(payload.token)
+async def logout(_: LogoutRequest) -> dict:
+    # Stateless JWT: no server-side token invalidation. Client must discard the token.
     return {"message": "Sessao finalizada com sucesso."}

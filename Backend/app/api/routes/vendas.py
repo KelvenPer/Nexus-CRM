@@ -14,6 +14,10 @@ from app.models import (
     ProductResponse,
 )
 from app.services import data_store
+from app.dependencies.tenancy import get_tenant_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.repositories import opportunities as opp_repo
+from app.repositories import contacts as contact_repo
 
 router = APIRouter()
 
@@ -89,9 +93,11 @@ async def delete_lead(lead_id: str, context: TenantContext = Depends(get_tenant_
     summary="List opportunities",
     response_model=list[OpportunityResponse],
 )
-async def list_opportunities(context: TenantContext = Depends(get_tenant_context)):
-    store = data_store.get_store(context.tenant_id)
-    return store.list_opportunities()
+async def list_opportunities(
+    context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    return await opp_repo.list_opportunities(session)
 
 
 @router.post(
@@ -103,9 +109,9 @@ async def list_opportunities(context: TenantContext = Depends(get_tenant_context
 async def create_opportunity(
     payload: OpportunityCreate,
     context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
 ):
-    store = data_store.get_store(context.tenant_id)
-    return store.create_opportunity(payload)
+    return await opp_repo.create_opportunity(session, context.tenant_id, payload)
 
 
 @router.get(
@@ -113,12 +119,15 @@ async def create_opportunity(
     summary="Get a specific opportunity",
     response_model=OpportunityResponse,
 )
-async def get_opportunity(op_id: str, context: TenantContext = Depends(get_tenant_context)):
-    store = data_store.get_store(context.tenant_id)
-    try:
-        return store.get_opportunity(op_id)
-    except KeyError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.") from None
+async def get_opportunity(
+    op_id: str,
+    context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    found = await opp_repo.get_opportunity(session, op_id)
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.")
+    return found
 
 
 @router.put(
@@ -130,12 +139,12 @@ async def update_opportunity(
     op_id: str,
     payload: OpportunityCreate,
     context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
 ):
-    store = data_store.get_store(context.tenant_id)
-    try:
-        return store.update_opportunity(op_id, payload)
-    except KeyError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.") from None
+    updated = await opp_repo.update_opportunity(session, op_id, payload)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.")
+    return updated
 
 
 @router.delete(
@@ -144,13 +153,15 @@ async def update_opportunity(
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-async def delete_opportunity(op_id: str, context: TenantContext = Depends(get_tenant_context)) -> Response:
-    store = data_store.get_store(context.tenant_id)
-    try:
-        store.delete_opportunity(op_id)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except KeyError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.") from None
+async def delete_opportunity(
+    op_id: str,
+    context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
+) -> Response:
+    deleted = await opp_repo.delete_opportunity(session, op_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oportunidade nao encontrada.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -179,9 +190,11 @@ async def create_account(payload: AccountCreate, context: TenantContext = Depend
     summary="List contacts",
     response_model=list[ContactResponse],
 )
-async def list_contacts(context: TenantContext = Depends(get_tenant_context)):
-    store = data_store.get_store(context.tenant_id)
-    return store.list_contacts()
+async def list_contacts(
+    context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    return await contact_repo.list_contacts(session)
 
 
 @router.post(
@@ -190,9 +203,12 @@ async def list_contacts(context: TenantContext = Depends(get_tenant_context)):
     response_model=ContactResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_contact(payload: ContactCreate, context: TenantContext = Depends(get_tenant_context)):
-    store = data_store.get_store(context.tenant_id)
-    return store.create_contact(payload)
+async def create_contact(
+    payload: ContactCreate,
+    context: TenantContext = Depends(get_tenant_context),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    return await contact_repo.create_contact(session, payload)
 
 
 @router.get(

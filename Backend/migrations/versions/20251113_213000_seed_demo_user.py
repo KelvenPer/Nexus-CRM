@@ -15,22 +15,50 @@ def upgrade() -> None:
     # Ensure pgcrypto for crypt()
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
-    # Safe insert tenant if table exists
-    op.execute(f"""
+    # Safe insert tenant if table exists (use proper UUID and unique by schema_name)
+    op.execute(
+        f"""
     DO $$
+    DECLARE has_slug BOOLEAN;
+    DECLARE has_nome_fantasia BOOLEAN;
     BEGIN
       IF to_regclass('{TENANT_ADMIN}.tb_tenant') IS NOT NULL THEN
-        INSERT INTO {TENANT_ADMIN}.tb_tenant (id, schema_name, nome_empresa)
-        VALUES ('tenant_demo', 'tenant_demo', 'Nexus Demo')
-        ON CONFLICT (id) DO NOTHING;
+        SELECT EXISTS(
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = '{TENANT_ADMIN}' AND table_name = 'tb_tenant' AND column_name = 'slug'
+        ) INTO has_slug;
+        SELECT EXISTS(
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = '{TENANT_ADMIN}' AND table_name = 'tb_tenant' AND column_name = 'nome_fantasia'
+        ) INTO has_nome_fantasia;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM {TENANT_ADMIN}.tb_tenant WHERE schema_name = 'tenant_demo'
+        ) THEN
+          IF has_slug AND has_nome_fantasia THEN
+            INSERT INTO {TENANT_ADMIN}.tb_tenant (id, slug, schema_name, nome_fantasia)
+            VALUES (gen_random_uuid(), 'tenant_demo', 'tenant_demo', 'Nexus Demo');
+          ELSE
+            -- Legacy columns naming
+            INSERT INTO {TENANT_ADMIN}.tb_tenant (id, schema_name, nome_empresa)
+            VALUES (gen_random_uuid(), 'tenant_demo', 'Nexus Demo');
+          END IF;
+        END IF;
       END IF;
     END$$;
-    """)
+        """
+    )
 
     # Create demo user with bcrypt hash using pgcrypto's crypt()/gen_salt('bf') if table exists
-    op.execute(f"""
+    op.execute(
+        f"""
     DO $$
+    DECLARE vtenant UUID;
     BEGIN
+      SELECT id INTO vtenant FROM {TENANT_ADMIN}.tb_tenant WHERE schema_name = 'tenant_demo' LIMIT 1;
+      IF vtenant IS NULL THEN
+        RETURN;
+      END IF;
       IF to_regclass('{TENANT_ADMIN}.tb_usuario') IS NOT NULL THEN
         IF NOT EXISTS (SELECT 1 FROM {TENANT_ADMIN}.tb_usuario WHERE email = 'admin@nexus.local') THEN
           INSERT INTO {TENANT_ADMIN}.tb_usuario (id, email, senha_hash, perfil, tenant_id)
@@ -39,12 +67,13 @@ def upgrade() -> None:
             'admin@nexus.local',
             crypt('admin123', gen_salt('bf')),
             'data_admin',
-            'tenant_demo'
+            vtenant
           );
         END IF;
       END IF;
     END$$;
-    """)
+        """
+    )
 
     # Link demo user to data_admin role if both tables exist
     op.execute(f"""
@@ -81,4 +110,3 @@ def downgrade() -> None:
       -- keep tenant row
     END$$;
     """)
-
