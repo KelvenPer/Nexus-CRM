@@ -1,22 +1,22 @@
-import { getAuthHeaders, API_BASE_URL } from "@/lib/auth";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
-export async function fetchJson<T>(
-  path: string,
-  fallback: T,
-  init?: RequestInit
-): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       cache: "no-store",
       ...init,
-      headers: { ...(init?.headers as Record<string, string> | undefined), ...getAuthHeaders() },
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
     });
     if (!response.ok) {
-      return fallback;
+      return null;
     }
-    const data = (await response.json()) as T;
-    return data ?? fallback;
+    return (await response.json()) as T;
   } catch {
-    return fallback;
+    return null;
   }
 }
+
+export { API_BASE_URL };
