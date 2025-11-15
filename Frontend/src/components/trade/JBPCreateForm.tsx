@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 import type { JBPDetailResponse } from "@/types/trade";
 
 type FormState = {
@@ -47,6 +48,7 @@ export default function JBPCreateForm() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
       });

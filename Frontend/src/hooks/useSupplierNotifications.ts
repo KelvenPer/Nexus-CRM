@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 
 type NotificationRecord = {
   id: string;
@@ -35,9 +36,15 @@ export function useSupplierNotifications(supplierId: string) {
 
   useEffect(() => {
     const fetchExisting = async () => {
-      const response = await fetch(`${API_BASE_URL}/api/supplier-portal/notifications?supplier_id=${supplierId}`, {
-        headers: { "X-Tenant-ID": "tenant_demo" },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/supplier-portal/notifications?supplier_id=${supplierId}`,
+        {
+          headers: {
+            "X-Tenant-ID": "tenant_demo",
+            ...getAuthHeaders(),
+          },
+        },
+      );
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.items ?? []);

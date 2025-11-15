@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 
 type ReportSummary = {
   id: string;
@@ -39,10 +40,16 @@ export default function ReportGenerator({ contractId }: Props) {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reports/generate?contract_id=${contractId}&report_type=${selectedType}`, {
-        method: "POST",
-        headers: { "X-Tenant-ID": "tenant_demo" },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/generate?contract_id=${contractId}&report_type=${selectedType}`,
+        {
+          method: "POST",
+          headers: {
+            "X-Tenant-ID": "tenant_demo",
+            ...getAuthHeaders(),
+          },
+        },
+      );
       if (response.ok) {
         const data = await response.json();
         setReports((prev) => [
@@ -57,7 +64,10 @@ export default function ReportGenerator({ contractId }: Props) {
 
   const downloadReport = async (id: string) => {
     const response = await fetch(`${API_BASE_URL}/api/reports/${id}/download`, {
-      headers: { "X-Tenant-ID": "tenant_demo" },
+      headers: {
+        "X-Tenant-ID": "tenant_demo",
+        ...getAuthHeaders(),
+      },
     });
     if (!response.ok) return;
     const blob = await response.blob();

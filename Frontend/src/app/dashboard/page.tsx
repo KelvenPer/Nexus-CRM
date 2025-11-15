@@ -1,22 +1,69 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import AppShell from "@/components/layout/AppShell";
 import InvestmentVsSalesChart from "@/components/trade/InvestmentVsSalesChart";
 import KpiCard from "@/components/trade/KpiCard";
 import SupplierROITable from "@/components/trade/SupplierROITable";
-import { apiFetch } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api";
+import { clearSession, getAuthHeaders, getStoredSession } from "@/lib/auth";
 import type { SupplierReport } from "@/types/trade";
 
 const DEFAULT_SUPPLIER_ID = process.env.NEXT_PUBLIC_DEFAULT_SUPPLIER_ID ?? "supplier_demo";
-
-async function fetchDashboardReport(): Promise<SupplierReport | null> {
-  return apiFetch<SupplierReport>(`/api/data/supplier-report/${DEFAULT_SUPPLIER_ID}`);
-}
 
 function formatCurrency(value: number) {
   return `R$ ${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 
-export default async function DashboardPage() {
-  const report = await fetchDashboardReport();
+export default function DashboardPage() {
+  const router = useRouter();
+  const [report, setReport] = useState<SupplierReport | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const session = getStoredSession();
+    if (!session || !session.access_token) {
+      router.replace("/login");
+      return;
+    }
+
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/data/supplier-report/${DEFAULT_SUPPLIER_ID}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeaders(),
+            },
+          },
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          clearSession();
+          router.replace("/login");
+          return;
+        }
+
+        if (response.ok) {
+          const data = (await response.json()) as SupplierReport;
+          setReport(data);
+        } else {
+          setReport(null);
+        }
+      } catch {
+        setReport(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    load();
+  }, [router]);
+
   const kpis = [
     {
       title: "Total JBP Ativo",
@@ -63,15 +110,26 @@ export default async function DashboardPage() {
     <AppShell>
       <div className="p-6 trade-dashboard">
         <h1>Nexus CRM - Painel Trade & Dados</h1>
-        <div className="grid grid-cols-4 gap-4 mt-4">
-          {kpis.map((kpi) => (
-            <KpiCard key={kpi.title} title={kpi.title} value={kpi.value} subtitle={kpi.subtitle} />
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-6 mt-6">
-          <InvestmentVsSalesChart dataPoints={chartData} />
-          <SupplierROITable rows={roiRows} />
-        </div>
+        {isLoading ? (
+          <p>Carregando dados do fornecedor...</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-4 mt-4">
+              {kpis.map((kpi) => (
+                <KpiCard
+                  key={kpi.title}
+                  title={kpi.title}
+                  value={kpi.value}
+                  subtitle={kpi.subtitle}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-6 mt-6">
+              <InvestmentVsSalesChart dataPoints={chartData} />
+              <SupplierROITable rows={roiRows} />
+            </div>
+          </>
+        )}
       </div>
     </AppShell>
   );

@@ -1,4 +1,5 @@
-import { API_BASE_URL } from '@/lib/api';
+import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 
 type UploadResponse = {
   proof: {
@@ -21,8 +22,17 @@ export const uploadFileWithProgress = (
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', ${API_BASE_URL}/api/proofs/upload);
-    xhr.setRequestHeader('X-Tenant-ID', 'tenant_demo');
+    xhr.open("POST", `${API_BASE_URL}/api/proofs/upload`);
+
+    const authHeaders =
+      typeof window !== "undefined"
+        ? (getAuthHeaders() as Record<string, string>)
+        : ({} as Record<string, string>);
+    Object.entries(authHeaders).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    xhr.setRequestHeader("X-Tenant-ID", "tenant_demo");
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(Math.round((event.loaded / event.total) * 100));
