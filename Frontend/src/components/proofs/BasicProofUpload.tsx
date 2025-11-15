@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 
 type ProofRecord = {
   id: string;
@@ -24,7 +25,7 @@ export default function BasicProofUpload({ assetId }: Props) {
     const fetchProofs = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/proofs/asset/${assetId}`, {
-          headers: { "X-Tenant-ID": "tenant_demo" },
+          headers: getAuthHeaders(),
         });
         if (response.ok) {
           const data = await response.json();
@@ -43,17 +44,17 @@ export default function BasicProofUpload({ assetId }: Props) {
 
     setUploading(true);
     const formData = new FormData();
-    formData.append("proof", file);
-    formData.append("assetId", assetId);
-    formData.append("proofType", "photo");
+    formData.append("asset_id", assetId);
+    formData.append("file", file);
+    formData.append("proof_type", "photo");
     formData.append("description", `Comprovacao para asset ${assetId}`);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/proofs/upload`, {
-        method: "POST",
-        headers: { "X-Tenant-ID": "tenant_demo" },
-        body: formData,
-      });
+        const response = await fetch(`${API_BASE_URL}/api/proofs/upload`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: formData,
+        });
       if (response.ok) {
         const result = await response.json();
         setProofs((prev) => [result.proof, ...prev]);

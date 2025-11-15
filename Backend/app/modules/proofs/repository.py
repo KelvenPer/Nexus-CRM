@@ -90,6 +90,7 @@ async def create_contract(
         supplier_id=payload.supplier_id,
         title=payload.title,
         status=payload.status,
+        current_roi=0.0,
         selected_assets=[],
         total_investment=payload.total_investment,
         start_date=payload.start_date,
@@ -125,6 +126,7 @@ async def list_contracts(
             supplier_id=str(row["supplier_id"]),
             title=row["title"],
             status=row["status"],
+            current_roi=0.0,
             selected_assets=[],
             total_investment=float(row["total_investment"] or 0),
             start_date=row["start_date"],
@@ -144,9 +146,11 @@ async def get_contract(
 ) -> schemas.JBPContract | None:
     stmt = text(
         """
-        SELECT *
-        FROM trade_jbp_contracts
-        WHERE id = :contract_id AND tenant_id = :tenant_id
+        SELECT c.*, s.name AS supplier_name
+        FROM trade_jbp_contracts c
+        LEFT JOIN trade_suppliers s
+          ON s.id = c.supplier_id AND s.tenant_id = c.tenant_id
+        WHERE c.id = :contract_id AND c.tenant_id = :tenant_id
         """
     )
     row = (await session.execute(stmt, {"contract_id": contract_id, "tenant_id": tenant_id})).mappings().first()
@@ -157,7 +161,9 @@ async def get_contract(
         id=str(row["id"]),
         supplier_id=str(row["supplier_id"]),
         title=row["title"],
+        supplier_name=row.get("supplier_name"),
         status=row["status"],
+        current_roi=0.0,
         selected_assets=assets,
         total_investment=float(row["total_investment"] or 0),
         start_date=row["start_date"],

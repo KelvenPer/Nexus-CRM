@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import SchemaBrowser from "@/components/sql-studio/SchemaBrowser";
 import SqlEditor from "@/components/sql-studio/SqlEditor";
@@ -24,6 +25,7 @@ const queryLines = [
 const initialQuery = queryLines.join("\n");
 
 export default function EstudioSQLPage() {
+  const router = useRouter();
   const [sqlQuery, setSqlQuery] = useState(initialQuery);
   const [queryResult, setQueryResult] = useState<Record<string, unknown>[]>([]);
   const [executionTime, setExecutionTime] = useState("");
@@ -55,6 +57,15 @@ export default function EstudioSQLPage() {
   useEffect(() => {
     setIsTestSuccessful(false);
   }, [sqlQuery]);
+
+  // Protege a rota: se nao houver token salvo, volta para /login
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem("nexus_token");
+    if (!token) {
+      router.replace("/login");
+    }
+  }, [router]);
 
   const handleTestQuery = useCallback(async () => {
     if (!isQueryValid) {

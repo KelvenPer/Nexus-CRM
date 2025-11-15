@@ -105,7 +105,9 @@ class JBPContract(BaseModel):
     id: str
     supplier_id: str
     title: str
+    supplier_name: str | None = None
     status: Literal["draft", "active", "completed", "cancelled"]
+    current_roi: float | None = None
     selected_assets: List[JBPAsset] = Field(default_factory=list)
     total_investment: float
     start_date: date

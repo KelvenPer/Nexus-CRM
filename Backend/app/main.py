@@ -2,7 +2,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health
+from app.api.routes import auth, dados, health, marketing, solucoes, admin_config
 from app.core.config import settings
 from app.middleware import ResponseTimeMiddleware
 from app.security.jwt_tenancy import validar_jwt_e_tenant
@@ -40,6 +40,12 @@ def get_application() -> FastAPI:
 
     app.include_router(health.router, tags=["Health"])  # public
     app.include_router(auth.router, prefix="/auth", tags=["Authentication"])  # public
+
+    # Backwards-compatible v1 APIs used by the current frontend
+    app.include_router(dados.router, prefix="/api/v1/dados", tags=["Data v1"])
+    app.include_router(marketing.router, prefix="/api/v1/marketing", tags=["Marketing v1"])
+    app.include_router(solucoes.router, prefix="/api/v1/solucoes", tags=["Solucoes v1"])
+    app.include_router(admin_config.router, prefix="/api/v1/admin/config", tags=["Admin Config v1"])
 
     # Protected routers: require JWT + tenant search_path
     deps = [Depends(validar_jwt_e_tenant)]

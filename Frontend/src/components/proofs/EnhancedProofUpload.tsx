@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
+import { getAuthHeaders } from "@/lib/auth";
 
 type ProofRecord = {
   id: string;
@@ -29,7 +30,7 @@ export default function EnhancedProofUpload({ assetId }: Props) {
 
   const fetchProofs = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/api/proofs/asset/${assetId}`, {
-      headers: { "X-Tenant-ID": "tenant_demo" },
+      headers: getAuthHeaders(),
     });
     if (response.ok) {
       const data = await response.json();
@@ -57,7 +58,7 @@ export default function EnhancedProofUpload({ assetId }: Props) {
 
   const fetchProcessingStatus = async (proofId: string): Promise<ProcessingStatus | null> => {
     const response = await fetch(`${API_BASE_URL}/api/proofs/status/${proofId}`, {
-      headers: { "X-Tenant-ID": "tenant_demo" },
+      headers: getAuthHeaders(),
     });
     if (!response.ok) return null;
     const data = await response.json();
@@ -69,15 +70,15 @@ export default function EnhancedProofUpload({ assetId }: Props) {
     if (!file) return;
     setUploading(true);
     const formData = new FormData();
-    formData.append("proof", file);
-    formData.append("assetId", assetId);
-    formData.append("proofType", "photo");
+    formData.append("asset_id", assetId);
+    formData.append("file", file);
+    formData.append("proof_type", "photo");
     formData.append("description", `Comprovacao para asset ${assetId}`);
     try {
       const response = await fetch(`${API_BASE_URL}/api/proofs/upload`, {
         method: "POST",
         body: formData,
-        headers: { "X-Tenant-ID": "tenant_demo" },
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const payload = await response.json();

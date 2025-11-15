@@ -39,10 +39,20 @@ export default function AppShell({
                 </div>
               </div>
               <div className="header-actions" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div className="search-field"><input aria-label="Buscar" placeholder="Buscar deals, objetos e objetos customizados" /></div>
+                <div className="search-field">
+                  <input
+                    aria-label="Buscar"
+                    placeholder="Buscar deals, objetos e objetos customizados"
+                  />
+                </div>
                 <HeaderToggles />
-                <button className="icon-button" aria-label="Notificacoes">??<span className="notification-dot" /></button>
-                <button className="icon-button" aria-label="Perfil">??</button>
+                <button className="icon-button" aria-label="Notificacoes">
+                  N
+                  <span className="notification-dot" />
+                </button>
+                <button className="icon-button" aria-label="Perfil">
+                  P
+                </button>
               </div>
             </header>
             <main className="app-main">{children}</main>

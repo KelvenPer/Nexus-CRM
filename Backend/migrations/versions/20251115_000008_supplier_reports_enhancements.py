@@ -36,7 +36,7 @@ def upgrade() -> None:
         );
 
         CREATE INDEX IF NOT EXISTS idx_supplier_reports_supplier
-            ON template_schema.supplier_reports (supplier_id, generated_at DESC);
+            ON template_schema.supplier_reports (supplier_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_supplier_reports_type
             ON template_schema.supplier_reports (report_type, period_start);
         CREATE INDEX IF NOT EXISTS idx_report_data_cache_key

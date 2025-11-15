@@ -89,16 +89,27 @@ export type ProofDashboard = {
   };
 };
 
+export type ContractAsset = {
+  id: string;
+  name: string;
+  asset_type: string;
+  description: string;
+  proof_requirements: string[];
+};
+
 export type JBPContractRecord = {
   id: string;
   supplier_id: string;
+  supplier_name?: string;
   title: string;
   status: string;
+   current_roi?: number;
   total_investment: number;
   start_date: string;
   end_date: string;
   proof_status: string;
   completion_percentage: number;
+  selected_assets?: ContractAsset[];
 };
 
 export type ProofHistoryEntry = {

@@ -34,8 +34,10 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     const session = getStoredSession();
-    if (session) {
-      router.replace("/dados/estudio-sql");
+    // Só redireciona automaticamente se houver token válido armazenado;
+    // caso contrário, força passar pela tela de login.
+    if (session && session.access_token) {
+      router.replace("/dashboard");
       return;
     }
     const timeout = setTimeout(() => setCardVisible(true), 150);
